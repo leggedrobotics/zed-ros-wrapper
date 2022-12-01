@@ -1,3 +1,60 @@
+# RSL ZED Camera
+
+This is the RSL private fork of the [ROS wrapper for the ZED SDK](https://github.com/stereolabs/zed-ros-wrapper).
+
+## What is this repository for? ##
+
+The purpose of this repo is to allow development on top of the official ROS wrapper.
+
+## How do I get set up? ##
+
+Please also read the official Stereolabs readme below.
+
+### Laptop/Workstation (Ubuntu 20.04, ROS Noetic) ###
+
+To work on the ZED ROS Driver on your personal machine:
+* Download and install the ZED SDK as described [here](https://www.stereolabs.com/docs/installation/linux/#download-and-install-the-zed-sdk)
+* Clone this repository: `git clone --recursive git@github.com:leggedrobotics/zed-ros-wrapper.git`
+* Build the package: `catkin build zed_ros`
+
+### Jetson Xavier (Ubuntu 18.04, ROS Melodic) ###
+
+To run the ZED ROS Driver on the Jetson:
+* Download and install the ZED SDK as described [here](https://www.stereolabs.com/docs/installation/jetson/)
+* Clone this repository: `git clone --recursive git@github.com:leggedrobotics/zed-ros-wrapper.git`
+* Install some more dependencies:
+```
+sudo apt install ros-melodic-image-transport
+sudo apt install ros-melodic-tf2-geometry-msgs
+sudo apt install ros-melodic-diagnostic-updater
+sudo apt install ros-melodic-xacro
+sudo apt install ros-melodic-robot-state-publisher
+```
+* Enter this in the terminal or add it to your `.bashrc`: `export OPENBLAS_CORETYPE=ARMV8`
+* Build the package: `catkin build zed_ros`
+
+### Jetson Orin (Ubuntu 20.04, ROS Noetic) ###
+
+TODO
+
+### OPC (Ubuntu 20.04, ROS Noetic) ###
+
+To have access to custom messages and services on OPC:
+* Clone the [zed-ros-interfaces](https://github.com/stereolabs/zed-ros-interfaces) repository: `git clone git@github.com:stereolabs/zed-ros-interfaces.git`
+* Build the package: `catkin build zed_interfaces`
+
+## What are the contribution guidelines ##
+
+This is a private fork, so:
+* `master` is the official main branch, and thus read-only
+* `rsl/main` is our main branch, and thus only writable through PRs
+* To distinguish our branches from official branches, add an `rsl` namespace, e.g. `rsl/feature/readme`
+
+## Who do I talk to? ##
+
+* Alexander Reske (areske@ethz.ch)
+* Joonho Lee (jolee@ethz.ch)
+
 ![](./images/Picto+STEREOLABS_Black.jpg)
 
 # Stereolabs ZED Camera - ROS Noetic Ninjemis Integration
