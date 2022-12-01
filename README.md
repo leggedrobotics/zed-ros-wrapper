@@ -12,7 +12,7 @@ Please also read the official Stereolabs readme below.
 
 ### Laptop/Workstation (Ubuntu 20.04, ROS Noetic) ###
 
-To work on the ZED ROS Driver on your personal machine:
+To work on the ZED ROS Driver on your personal machine (note that you need a GPU):
 * Download and install the ZED SDK as described [here](https://www.stereolabs.com/docs/installation/linux/#download-and-install-the-zed-sdk)
 * Clone this repository: `git clone --recursive git@github.com:leggedrobotics/zed-ros-wrapper.git`
 * Build the package: `catkin build zed_ros`
@@ -43,7 +43,7 @@ To have access to custom messages and services on OPC:
 * Clone the [zed-ros-interfaces](https://github.com/stereolabs/zed-ros-interfaces) repository: `git clone git@github.com:stereolabs/zed-ros-interfaces.git`
 * Build the package: `catkin build zed_interfaces`
 
-## What are the contribution guidelines ##
+## What are the contribution guidelines? ##
 
 This is a private fork, so:
 * `master` is the official main branch, and thus read-only
