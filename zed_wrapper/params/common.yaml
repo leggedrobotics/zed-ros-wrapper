@@ -23,8 +23,13 @@ general:
     zed_id:                     0
     serial_number:              0
     gpu_id:                     -1
+<<<<<<< HEAD
     base_frame:                 'base_link'                     # must be equal to the frame_id used in the URDF file
     sdk_verbose:                1                               # Set verbose level of the ZED SDK
+=======
+    base_frame:                 'zed_base_link'                     # must be equal to the frame_id used in the URDF file
+    verbose:                    false                           # Enable info message by the ZED SDK
+>>>>>>> modified params
     svo_compression:            2                               # `0`: LOSSLESS, `1`: AVCHD, `2`: HEVC
     self_calib:                 true                            # enable/disable self calibration at starting
     camera_flip:                'AUTO'                          # camera flip mode: 'OFF', 'ON', 'AUTO'
@@ -51,9 +56,9 @@ pos_tracking:
     imu_fusion:                 true                            # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
     publish_tf:                 true                            # publish `odom -> base_link` TF
     publish_map_tf:             true                            # publish `map -> odom` TF
-    map_frame:                  'map'                           # main frame
-    odometry_frame:             'odom'                          # odometry frame
-    area_memory_db_path:        ''                              # file loaded when the node starts to restore the "known visual features" map. 
+    map_frame:                  'zed_map'                           # main frame
+    odometry_frame:             'zed_odom'                          # odometry frame
+    area_memory_db_path:        'zed_area_memory.area'          # file loaded when the node starts to restore the "known visual features" map. 
     save_area_memory_db_on_exit: false                          # save the "known visual features" map when the node is correctly closed to the path indicated by `area_memory_db_path`
     area_memory:                true                            # Enable to detect loop closure
     floor_alignment:            false                           # Enable to automatically calculate camera/floor offset
