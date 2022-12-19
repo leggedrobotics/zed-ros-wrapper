@@ -26,7 +26,7 @@ general:
     resolution:                 2                               # '0': HD2K, '1': HD1080, '2': HD720, '3': VGA
     grab_frame_rate:            15                              # Frequency of frame grabbing for internal SDK operations
     gpu_id:                     -1
-    base_frame:                 'base_link'                     # must be equal to the frame_id used in the URDF file
+    base_frame:                 'zed_base_link'                     # must be equal to the frame_id used in the URDF file
     verbose:                    false                           # Enable info message by the ZED SDK
     svo_compression:            2                               # `0`: LOSSLESS, `1`: AVCHD, `2`: HEVC
     self_calib:                 true                            # enable/disable self calibration at starting
@@ -47,8 +47,8 @@ pos_tracking:
     pos_tracking_enabled:       true                            # True to enable positional tracking from start
     publish_tf:                 true                            # publish `odom -> base_link` TF
     publish_map_tf:             true                            # publish `map -> odom` TF
-    map_frame:                  'map'                           # main frame
-    odometry_frame:             'odom'                          # odometry frame
+    map_frame:                  'zed_map'                           # main frame
+    odometry_frame:             'zed_odom'                          # odometry frame
     area_memory_db_path:        'zed_area_memory.area'          # file loaded when the node starts to restore the "known visual features" map. 
     save_area_memory_db_on_exit: false                          # save the "known visual features" map when the node is correctly closed to the path indicated by `area_memory_db_path`
     area_memory:                true                            # Enable to detect loop closure
