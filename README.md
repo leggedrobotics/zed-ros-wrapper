@@ -9,6 +9,7 @@ The purpose of this repo is to allow development on top of the official ROS wrap
 ## How do I get set up? ##
 
 Please also read the official Stereolabs readme below.
+* Make sure to [download SDK version 3.8](https://www.stereolabs.com/developers/release/3.8/)
 
 ### Laptop/Workstation (Ubuntu 20.04, ROS Noetic) ###
 
