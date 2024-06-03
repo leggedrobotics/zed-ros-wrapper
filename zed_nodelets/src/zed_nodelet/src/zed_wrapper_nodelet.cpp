@@ -3110,7 +3110,9 @@ void ZEDWrapperNodelet::pubVideoDepth()
   ros::Time stamp = sl_tools::slTime2Ros(grab_ts);
   if (mSvoMode)
   {
-    stamp = ros::Time::now();
+    //stamp = ros::Time::now();
+    // Override timestamp to the original SVO timestamp.
+    stamp = sl_tools::slTime2Ros(mZed.getTimestamp(sl::TIME_REFERENCE::IMAGE));  // Use ZED internal timestamp
   }
   // <---- Data ROS timestamp
 
