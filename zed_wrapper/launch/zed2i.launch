@@ -22,11 +22,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     <arg name="node_name"            default="zed_node" />
     <arg name="camera_model"         default="zed2i" />
-    <arg name="publish_urdf"         default="true" />
+    <arg name="publish_urdf"         default="false" />
 
     <arg name="camera_name"          default="zed2i" />
 
-    <arg name="base_frame"           default="base_link" />
+    <arg name="base_frame"           default="zed2i_base_link" />
 
     <arg name="cam_pos_x"             default="0.0" /> <!-- Position respect to base frame (i.e. "base_link) -->
     <arg name="cam_pos_y"             default="0.0" /> <!-- Position respect to base frame (i.e. "base_link) -->

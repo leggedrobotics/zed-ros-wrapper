@@ -40,25 +40,25 @@ general:
 #video:
 
 depth:
-    depth_mode:                 'ULTRA'                         # 'NONE', 'PERFORMANCE', 'QUALITY', 'ULTRA', 'NEURAL', `NEURAL_PLUS`
+    depth_mode:                 'NEURAL_PLUS'                         # 'NONE', 'PERFORMANCE', 'QUALITY', 'ULTRA', 'NEURAL', `NEURAL_PLUS`
     depth_stabilization:        1                               # [0-100] - 0: Disabled
     openni_depth_mode:          false                           # 'false': 32bit float meter units, 'true': 16bit uchar millimeter units
 
 pos_tracking:
-    pos_tracking_enabled:       true                            # True to enable positional tracking from start
+    pos_tracking_enabled:       false                            # True to enable positional tracking from start
     pos_tracking_mode:          'GEN_2'                          # Matches the ZED SDK setting: 'GEN_1', 'GEN_2'
     set_gravity_as_origin:      true                            # If 'true' align the positional tracking world to imu gravity measurement. Keep the yaw from the user initial pose.
-    imu_fusion:                 true                            # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
-    publish_tf:                 true                            # publish `odom -> base_link` TF
-    publish_map_tf:             true                            # publish `map -> odom` TF
+    imu_fusion:                 false                            # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
+    publish_tf:                 false                            # publish `odom -> base_link` TF
+    publish_map_tf:             false                            # publish `map -> odom` TF
     map_frame:                  'map'                           # main frame
     odometry_frame:             'odom'                          # odometry frame
     area_memory_db_path:        ''                              # file loaded when the node starts to restore the "known visual features" map. 
     save_area_memory_db_on_exit: false                          # save the "known visual features" map when the node is correctly closed to the path indicated by `area_memory_db_path`
-    area_memory:                true                            # Enable to detect loop closure
+    area_memory:                false                            # Enable to detect loop closure
     floor_alignment:            false                           # Enable to automatically calculate camera/floor offset
     initial_base_pose:          [0.0,0.0,0.0, 0.0,0.0,0.0]      # Initial position of the `base_frame` -> [X, Y, Z, R, P, Y]
-    init_odom_with_first_valid_pose: true                       # Enable to initialize the odometry with the first valid pose
+    init_odom_with_first_valid_pose: false                       # Enable to initialize the odometry with the first valid pose
     path_pub_rate:              2.0                             # Camera trajectory publishing frequency
     path_max_count:             -1                              # use '-1' for unlimited path size
     two_d_mode:                 false                           # Force navigation on a plane. If true the Z value will be fixed to "fixed_z_value", roll and pitch to zero
@@ -74,9 +74,9 @@ mapping:
     clicked_point_topic:        '/clicked_point'                # Topic published by Rviz when a point of the cloud is clicked. Used for plane detection
 
 sensors:
-    sensors_timestamp_sync:     false                           # Synchronize Sensors messages timestamp with latest received frame
+    sensors_timestamp_sync:     true                           # Synchronize Sensors messages timestamp with latest received frame
     max_pub_rate:               200.                            # max frequency of publishing of sensors data. MAX: 400. - MIN: grab rate
-    publish_imu_tf:             true                            # publish `IMU -> <cam_name>_left_camera_frame` TF
+    publish_imu_tf:             false                            # publish `IMU -> <cam_name>_left_camera_frame` TF
 
 object_detection:
     od_enabled:                         false                           # True to enable Object Detection [not available for ZED]
