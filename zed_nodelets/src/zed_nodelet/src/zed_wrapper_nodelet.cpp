@@ -443,7 +443,7 @@ void ZEDWrapperNodelet::onInit()
   // <---- Dynamic Reconfigure parameters
 
   // ----> Publishers
-  NODELET_INFO("*** PUBLISHERS ***");
+  NODELET_INFO("*** PUBLISHERS HELLO CHANGES ***");
 
   // Image publishers
   image_transport::ImageTransport it_zed(mNhNs);
@@ -2421,7 +2421,9 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
                                      image_transport::CameraPublisher& pubImg, sensor_msgs::CameraInfoPtr camInfoMsg,
                                      std::string imgFrameId, ros::Time t)
 {
+  NODELET_INFO_STREAM(" * Timestamp " << t.toSec());
   camInfoMsg->header.stamp = t;
+  imgMsgPtr->header.stamp = t;
   sl_tools::imageToROSmsg(imgMsgPtr, img, imgFrameId, t);
   pubImg.publish(imgMsgPtr, camInfoMsg);
 }
