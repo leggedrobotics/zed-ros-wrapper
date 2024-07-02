@@ -2421,7 +2421,6 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
                                      image_transport::CameraPublisher& pubImg, sensor_msgs::CameraInfoPtr camInfoMsg,
                                      std::string imgFrameId, ros::Time t)
 {
-  NODELET_INFO_STREAM(" * Timestamp " << t.toSec());
   camInfoMsg->header.stamp = t;
   imgMsgPtr->header.stamp = t;
   sl_tools::imageToROSmsg(imgMsgPtr, img, imgFrameId, t);

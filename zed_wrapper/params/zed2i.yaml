@@ -4,7 +4,7 @@
 
 general:
     camera_model:               'zed2i'
-    grab_resolution:            'HD720'     # 'HD2K', 'HD1080', 'HD720', 'VGA', 'AUTO'
+    grab_resolution:            'HD1080'     # 'HD2K', 'HD1080', 'HD720', 'VGA', 'AUTO'
     grab_frame_rate:            30          # Frequency of frame grabbing for internal SDK operations
 
 depth:
@@ -24,7 +24,7 @@ object_detection:
     model:                      0               # '0': MULTI_CLASS_BOX - '1': MULTI_CLASS_BOX_ACCURATE - '2': HUMAN_BODY_FAST - '3': HUMAN_BODY_ACCURATE - '4': MULTI_CLASS_BOX_MEDIUM - '5': HUMAN_BODY_MEDIUM - '6': PERSON_HEAD_BOX
     confidence_threshold:       50              # Minimum value of the detection confidence of an object [0,100]
     max_range:                  10.             # Maximum detection range
-    object_tracking_enabled:    true            # Enable/disable the tracking of the detected objects
+    object_tracking_enabled:    false            # Enable/disable the tracking of the detected objects
     body_fitting:               false           # Enable/disable body fitting for 'HUMAN_BODY_X' models
     mc_people:                  true            # Enable/disable the detection of persons for 'MULTI_CLASS_BOX_X' models
     mc_vehicle:                 false           # Enable/disable the detection of vehicles for 'MULTI_CLASS_BOX_X' models
