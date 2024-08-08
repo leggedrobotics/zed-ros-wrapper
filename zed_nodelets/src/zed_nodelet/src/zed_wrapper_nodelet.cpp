@@ -111,8 +111,12 @@ void ZEDWrapperNodelet::onInit()
     exit(-1);
   }
 
+  readParameters();
+  initTransforms();
+
   if (saveRosbags_)
   {
+    NODELET_ERROR("TRYING TO SAVE ROSBAGS");
     std::string outBagPathSensorData_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_sensorData", ".bag");
     std::string outBagPathDepth_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_depth", ".bag");
     std::string outBagPathImages_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_images", ".bag");
@@ -122,11 +126,10 @@ void ZEDWrapperNodelet::onInit()
     outBag_sensorData.open(outBagPathSensorData_, rosbag::bagmode::Write);
     outBag_depthAndConfidence.open(outBagPathDepth_, rosbag::bagmode::Write);
     outBag_images.open(outBagPathImages_, rosbag::bagmode::Write);
+  }else{
+    NODELET_ERROR("not saving rosbags");
+    subsOverwride = 0;
   }
-
-  subsOverwride = 0
-  readParameters();
-  initTransforms();
 
   // Set the video topic names
   std::string rgbTopicRoot = "rgb";
@@ -1328,6 +1331,16 @@ void ZEDWrapperNodelet::readParameters()
   mNhNs.getParam("general/base_frame", mBaseFrameId);
   mNhNs.getParam("general/save_grandtour_rosbags", saveRosbags_);
 
+  if (saveRosbagsString_ == "false")
+  {
+    saveRosbags_ = false;
+  }
+
+  if (saveRosbagsString_ == "true")
+  {
+    saveRosbags_ = true;
+  }
+
   mCameraFrameId = mCameraName + "_camera_center";
   mImuFrameId = mCameraName + "_imu_link";
   mLeftCamFrameId = mCameraName + "_left_camera_frame";
@@ -2348,7 +2361,10 @@ void ZEDWrapperNodelet::publishOdom(tf2::Transform odom2baseTransf, sl::Pose& sl
 
     // Publish odometry message
     NODELET_DEBUG("Publishing ODOM message");
-    outBag_sensorData.write("/zed2i/zed_node/odom", t, *odomMsg);
+    if (saveRosbags_)
+    {
+      outBag_sensorData.write("/zed2i/zed_node/odom", t, *odomMsg);
+    }
     mPubOdom.publish(odomMsg);
   }
 }
@@ -5873,7 +5889,11 @@ void ZEDWrapperNodelet::publishOdomTF(ros::Time t)
 
   // Publish transformation
   mTfBroadcaster.sendTransform(transformStamped);
-  outBag_sensorData.write("/tf", t, transformStamped);
+  if (saveRosbags_)
+  {
+    //TODO BUGGY
+    outBag_sensorData.write("/tf", t, transformStamped);
+  }
 }
 
 void ZEDWrapperNodelet::publishPoseTF(ros::Time t)

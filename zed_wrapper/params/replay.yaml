@@ -1,9 +1,9 @@
 general:
     verbose:                    false                           # Enable info message by the ZED SDK
     svo_realtime:               false
-    pub_frame_rate:             120.0
+    pub_frame_rate:             15.0
     self_calib:                 true
-    save_grandtour_rosbags:     true
+    save_grandtour_rosbags:     false
 pos_tracking:
     pos_tracking_enabled:       true
     area_memory:                false

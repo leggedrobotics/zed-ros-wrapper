@@ -651,6 +651,7 @@ private:
   std::string mClickedPtTopic = "/clicked_point";
   uint32_t subsOverwride = 1;
   bool saveRosbags_ = false;
+  std::string saveRosbagsString_ = "";
 
   // Positional tracking
   bool mPosTrackingEnabled = false;
