@@ -29,7 +29,6 @@
 #ifndef NDEBUG
 #include <ros/console.h>
 #endif
-
 #include <zed_interfaces/Object.h>
 #include <zed_interfaces/ObjectsStamped.h>
 #include <zed_interfaces/PlaneStamped.h>
@@ -53,7 +52,7 @@ ZEDWrapperNodelet::ZEDWrapperNodelet() : Nodelet()
 
 ZEDWrapperNodelet::~ZEDWrapperNodelet()
 {
-  // std::cerr << "Destroying " << getName() << std::endl;
+  std::cerr << "Destroying: " << getName() << std::endl;
 
   if (mDevicePollThread.joinable())
   {
@@ -112,8 +111,21 @@ void ZEDWrapperNodelet::onInit()
     exit(-1);
   }
 
-  readParameters();
+  if (saveRosbags_)
+  {
+    std::string outBagPathSensorData_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_sensorData", ".bag");
+    std::string outBagPathDepth_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_depth", ".bag");
+    std::string outBagPathImages_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_images", ".bag");
+    std::remove(outBagPathSensorData_.c_str());
+    std::remove(outBagPathDepth_.c_str());
+    std::remove(outBagPathImages_.c_str());
+    outBag_sensorData.open(outBagPathSensorData_, rosbag::bagmode::Write);
+    outBag_depthAndConfidence.open(outBagPathDepth_, rosbag::bagmode::Write);
+    outBag_images.open(outBagPathImages_, rosbag::bagmode::Write);
+  }
 
+  subsOverwride = 0
+  readParameters();
   initTransforms();
 
   // Set the video topic names
@@ -664,7 +676,24 @@ void ZEDWrapperNodelet::onInit()
   // <---- Threads
 
   NODELET_INFO("+++ ZED Node started +++");
+
 }
+
+std::string ZEDWrapperNodelet::buildUpLogFilename(const std::string& typeSuffix, const std::string& extension) {
+  // ros::WallTime stamp = ros::WallTime::now();
+  // std::stringstream ss;
+  // ss << stamp.sec << "_" << stamp.nsec;
+
+  // Find ros package directory
+  std::string pkgPath = ros::package::getPath("zed_wrapper");
+
+  // Add prefixes.
+  // Not sure if adding time is the best thing to do since we dont keep a ring buffer.
+  // std::string filename = slam_->mapSavingFolderPath_ + typeSuffix + ss.str() + extension;
+  std::string filename = pkgPath + "/data/" + typeSuffix + extension;
+
+  return filename;
+  }
 
 void ZEDWrapperNodelet::initServices()
 {
@@ -1255,6 +1284,10 @@ void ZEDWrapperNodelet::readParameters()
   readGeneralParams();
   // <---- General
 
+  // ----> Dynamic
+  readDynParams();
+  // <---- Dynamic
+
   // ----> Video
   // NODELET_INFO_STREAM("*** VIDEO PARAMETERS ***");
   // Note: there are no "static" video parameters
@@ -1263,10 +1296,6 @@ void ZEDWrapperNodelet::readParameters()
   // -----> Depth
   readDepthParams();
   // <----- Depth
-
-  // ----> Dynamic
-  void readDynParams();
-  // <---- Dynamic
 
   // ----> Positional Tracking
   readPosTrkParams();
@@ -1297,6 +1326,7 @@ void ZEDWrapperNodelet::readParameters()
   mNhNs.getParam("pos_tracking/map_frame", mMapFrameId);
   mNhNs.getParam("pos_tracking/odometry_frame", mOdomFrameId);
   mNhNs.getParam("general/base_frame", mBaseFrameId);
+  mNhNs.getParam("general/save_grandtour_rosbags", saveRosbags_);
 
   mCameraFrameId = mCameraName + "_camera_center";
   mImuFrameId = mCameraName + "_imu_link";
@@ -2285,7 +2315,7 @@ void ZEDWrapperNodelet::publishOdom(tf2::Transform odom2baseTransf, sl::Pose& sl
 {
   size_t odomSub = mPubOdom.getNumSubscribers();
 
-  if (odomSub)
+  if (odomSub + subsOverwride)
   {
     nav_msgs::OdometryPtr odomMsg = boost::make_shared<nav_msgs::Odometry>();
 
@@ -2318,6 +2348,7 @@ void ZEDWrapperNodelet::publishOdom(tf2::Transform odom2baseTransf, sl::Pose& sl
 
     // Publish odometry message
     NODELET_DEBUG("Publishing ODOM message");
+    outBag_sensorData.write("/zed2i/zed_node/odom", t, *odomMsg);
     mPubOdom.publish(odomMsg);
   }
 }
@@ -2419,18 +2450,46 @@ void ZEDWrapperNodelet::publishStaticImuFrame()
 
 void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat img,
                                      image_transport::CameraPublisher& pubImg, sensor_msgs::CameraInfoPtr camInfoMsg,
-                                     std::string imgFrameId, ros::Time t)
+                                     std::string imgFrameId, ros::Time t, std::string saveName)
 {
-  NODELET_INFO_THROTTLE(2.0, "Recording rosbag with original timestamps.");
   camInfoMsg->header.stamp = t;
   imgMsgPtr->header.stamp = t;
   sl_tools::imageToROSmsg(imgMsgPtr, img, imgFrameId, t);
+
+  if (saveRosbags_)
+  {
+    if (saveName != "")
+    {
+      //Original images are in bgra8 encoding
+
+      cv::Mat colorImg = cv_bridge::toCvCopy(*imgMsgPtr, sensor_msgs::image_encodings::BGRA8)->image;
+      // std::vector<int> param(2);
+      // param[0] = cv::IMWRITE_JPEG_QUALITY;
+      // param[1] = 95;//default(95) 0-100
+
+      // // PNG compression level, 9 == full , 0 == none
+      std::vector<int> param = {cv::IMWRITE_PNG_COMPRESSION, 1};
+
+      sensor_msgs::CompressedImage compressedMsg;
+      // compressedMsg.format = "jpeg";
+      compressedMsg.format = "png";
+      compressedMsg.header = imgMsgPtr->header;
+      
+      // cv::imencode(".jpg", colorImg, compressedMsg.data, param);
+      cv::imencode(".png", colorImg, compressedMsg.data, param);
+
+      outBag_images.write( saveName + "/image_rect_color/compressed", t, compressedMsg);
+      outBag_images.write( saveName + "/camera_info", t, *camInfoMsg);
+    }
+  }
+  
   pubImg.publish(imgMsgPtr, camInfoMsg);
 }
 
 void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat depth, ros::Time t)
 {
   mDepthCamInfoMsg->header.stamp = t;
+  imgMsgPtr->header.stamp = t;
 
   // NODELET_DEBUG_STREAM("mOpenniDepthMode: " << mOpenniDepthMode);
 
@@ -2438,8 +2497,26 @@ void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat de
   {
     // NODELET_INFO("Using float32");
     sl_tools::imageToROSmsg(imgMsgPtr, depth, mDepthOptFrameId, t);
-    mPubDepth.publish(imgMsgPtr, mDepthCamInfoMsg);
 
+    if (saveRosbags_)
+    {
+      cv::Mat depthImg = cv_bridge::toCvCopy(*imgMsgPtr, sensor_msgs::image_encodings::TYPE_32FC1)->image;
+      sensor_msgs::CompressedImage compressedDepthMsg;
+      compressedDepthMsg.format = "png";
+      compressedDepthMsg.header = imgMsgPtr->header;
+      
+      // // that's compression level, 9 == full , 0 == none
+      std::vector<int> param = {cv::IMWRITE_PNG_COMPRESSION, 1};
+      cv::imencode(".png", depthImg, compressedDepthMsg.data, param);
+
+      // CV_IMWRITE_PXM_BINARY
+      // 1 for binary format, 0 for ascii format
+
+      outBag_depthAndConfidence.write("/zed2i/zed_node/depth/depth_registered", t, compressedDepthMsg);
+      outBag_depthAndConfidence.write("/zed2i/zed_node/depth/camera_info", t, *mDepthCamInfoMsg);
+    }
+
+    mPubDepth.publish(imgMsgPtr, mDepthCamInfoMsg);
     return;
   }
 
@@ -2552,6 +2629,7 @@ void ZEDWrapperNodelet::publishPointCloud()
     sensor_msgs::PointCloud2Modifier modifier(*pointcloudMsg);
     modifier.setPointCloud2Fields(4, "x", 1, sensor_msgs::PointField::FLOAT32, "y", 1, sensor_msgs::PointField::FLOAT32,
                                   "z", 1, sensor_msgs::PointField::FLOAT32, "rgb", 1, sensor_msgs::PointField::FLOAT32);
+    // outBag.write("/zed2i/zed_node/point_cloud/cloud_registered", mPointCloudTime, *pointcloudMsg);
   }
 
   // Data copy
@@ -3009,7 +3087,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
   uint32_t tot_sub = rgbSubnumber + rgbRawSubnumber + leftSubnumber + leftRawSubnumber + rightSubnumber +
                      rightRawSubnumber + rgbGraySubnumber + rgbGrayRawSubnumber + leftGraySubnumber +
                      leftGrayRawSubnumber + rightGraySubnumber + rightGrayRawSubnumber + depthSubnumber +
-                     disparitySubnumber + confMapSubnumber + stereoSubNumber + stereoRawSubNumber;
+                     disparitySubnumber + confMapSubnumber + stereoSubNumber + stereoRawSubNumber + subsOverwride;
 
   bool retrieved = false;
 
@@ -3024,7 +3102,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
   sl::Timestamp grab_ts = 0;
 
   // ----> Retrieve all required image data
-  if (rgbSubnumber + leftSubnumber + stereoSubNumber > 0)
+  if (rgbSubnumber + leftSubnumber + stereoSubNumber + subsOverwride > 0)
   {
     mZed.retrieveImage(mat_left, sl::VIEW::LEFT, sl::MEM::CPU, mMatResol);
     retrieved = true;
@@ -3037,7 +3115,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
     retrieved = true;
     grab_ts = mat_left_raw.timestamp;
   }
-  if (rightSubnumber + stereoSubNumber > 0)
+  if (rightSubnumber + stereoSubNumber + subsOverwride > 0)
   {
     mZed.retrieveImage(mat_right, sl::VIEW::RIGHT, sl::MEM::CPU, mMatResol);
     retrieved = true;
@@ -3073,7 +3151,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
     retrieved = true;
     grab_ts = mat_right_raw_gray.timestamp;
   }
-  if (depthSubnumber > 0)
+  if (depthSubnumber + subsOverwride > 0)
   {
     if (!mOpenniDepthMode)
     {
@@ -3100,7 +3178,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
     retrieved = true;
     grab_ts = mat_disp.timestamp;
   }
-  if (confMapSubnumber > 0)
+  if (confMapSubnumber + subsOverwride > 0)
   {
     mZed.retrieveMeasure(mat_conf, sl::MEASURE::CONFIDENCE, sl::MEM::CPU, mMatResol);
     retrieved = true;
@@ -3110,12 +3188,14 @@ void ZEDWrapperNodelet::pubVideoDepth()
 
   // ----> Data ROS timestamp
   ros::Time stamp = sl_tools::slTime2Ros(grab_ts);
-  if (mSvoMode)
-  {
-    //stamp = ros::Time::now();
-    // Override timestamp to the original SVO timestamp.
-    stamp = sl_tools::slTime2Ros(mZed.getTimestamp(sl::TIME_REFERENCE::IMAGE));  // Use ZED internal timestamp
-  }
+  ros::Time lastZedTsstamp = sl_tools::slTime2Ros(lastZedTs);
+
+  // if (mSvoMode)
+  // {
+  //   // Override timestamp to the original SVO timestamp.
+  //   stamp = sl_tools::slTime2Ros(mZed.getTimestamp(sl::TIME_REFERENCE::IMAGE));  // Use ZED internal timestamp
+  //   std::cout << "stamp: " << stamp << std::endl;
+  // }
   // <---- Data ROS timestamp
 
   // ----> Publish sensor data if sync is required by user or SVO
@@ -3165,10 +3245,10 @@ void ZEDWrapperNodelet::pubVideoDepth()
   // <---- Check if a grab has been done before publishing the same images
 
   // Publish the left = rgb image if someone has subscribed to
-  if (leftSubnumber > 0)
-  {
+  if (leftSubnumber + subsOverwride > 0)
+   {
     sensor_msgs::ImagePtr leftImgMsg = boost::make_shared<sensor_msgs::Image>();
-    publishImage(leftImgMsg, mat_left, mPubLeft, mLeftCamInfoMsg, mLeftCamOptFrameId, stamp);
+    publishImage(leftImgMsg, mat_left, mPubLeft, mLeftCamInfoMsg, mLeftCamOptFrameId, stamp, "/zed2i/zed_node/left");
   }
   if (rgbSubnumber > 0)
   {
@@ -3214,10 +3294,10 @@ void ZEDWrapperNodelet::pubVideoDepth()
   }
 
   // Publish the right image if someone has subscribed to
-  if (rightSubnumber > 0)
+  if (rightSubnumber + subsOverwride > 0)
   {
     sensor_msgs::ImagePtr rightImgMsg = boost::make_shared<sensor_msgs::Image>();
-    publishImage(rightImgMsg, mat_right, mPubRight, mRightCamInfoMsg, mRightCamOptFrameId, stamp);
+    publishImage(rightImgMsg, mat_right, mPubRight, mRightCamInfoMsg, mRightCamOptFrameId, stamp, "/zed2i/zed_node/right");
   }
 
   // Publish the right image GRAY if someone has subscribed to
@@ -3259,7 +3339,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
   }
 
   // Publish the depth image if someone has subscribed to
-  if (depthSubnumber > 0)
+  if (depthSubnumber + subsOverwride > 0)
   {
     sensor_msgs::ImagePtr depthImgMsg = boost::make_shared<sensor_msgs::Image>();
     publishDepth(depthImgMsg, mat_depth, stamp);
@@ -3272,10 +3352,24 @@ void ZEDWrapperNodelet::pubVideoDepth()
   }
 
   // Publish the confidence map if someone has subscribed to
-  if (confMapSubnumber > 0)
+  if (confMapSubnumber + subsOverwride > 0)
   {
     sensor_msgs::ImagePtr confMapMsg = boost::make_shared<sensor_msgs::Image>();
     sl_tools::imageToROSmsg(confMapMsg, mat_conf, mConfidenceOptFrameId, stamp);
+    
+    if (saveRosbags_)
+    {
+      cv::Mat confImg = cv_bridge::toCvCopy(*confMapMsg, sensor_msgs::image_encodings::TYPE_32FC1)->image;
+      sensor_msgs::CompressedImage compressedConfMsg;
+      compressedConfMsg.format = "png";
+      compressedConfMsg.header = confMapMsg->header;
+      
+      // // that's compression level, 9 == full , 0 == none
+      std::vector<int> param = {cv::IMWRITE_PNG_COMPRESSION, 1};
+      cv::imencode(".png", confImg, compressedConfMsg.data, param);
+      outBag_depthAndConfidence.write("/zed2i/zed_node/confidence/confidence_map", stamp, compressedConfMsg);
+    }
+
     mPubConfMap.publish(confMapMsg);
   }
 }
@@ -3436,7 +3530,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
   }
 
   uint32_t tot_sub = imu_SubNumber + imu_RawSubNumber + imu_TempSubNumber + imu_MagSubNumber + pressSubNumber +
-                     tempLeftSubNumber + tempRightSubNumber;
+                     tempLeftSubNumber + tempRightSubNumber + subsOverwride;
 
   if (tot_sub > 0)
   {
@@ -3512,7 +3606,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     sens_data.temperature.get(sl::SensorsData::TemperatureData::SENSOR_LOCATION::ONBOARD_RIGHT, mTempRight);
   }
 
-  if (imu_TempSubNumber > 0 && new_imu_data)
+  if (imu_TempSubNumber + subsOverwride > 0 && new_imu_data)
   {
     lastTs_imu = ts_imu;
 
@@ -3536,6 +3630,10 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     imuTempMsg->variance = 0.0;
 
     sensors_data_published = true;
+    if (saveRosbags_)
+    {
+      outBag_sensorData.write("/zed2i/zed_node/temperature/imu", ts_imu, *imuTempMsg);
+    }
     mPubImuTemp.publish(imuTempMsg);
   } /*else {
       NODELET_DEBUG("No new IMU temp.");
@@ -3616,7 +3714,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
       NODELET_DEBUG("No new BAROM. DATA");
   }*/
 
-  if (imu_MagSubNumber > 0)
+  if (imu_MagSubNumber + subsOverwride > 0)
   {
     if (sens_data.magnetometer.is_available && new_mag_data)
     {
@@ -3650,13 +3748,17 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
       magMsg->magnetic_field_covariance[8] = 0.047e-6;
 
       sensors_data_published = true;
+      if (saveRosbags_)
+      {
+        outBag_sensorData.write("/zed2i/zed_node/imu/mag", ts_mag, *magMsg);
+      } 
       mPubImuMag.publish(magMsg);
     }
   } /*else {
       NODELET_DEBUG("No new MAG. DATA");
   }*/
 
-  if (imu_SubNumber > 0 && new_imu_data)
+  if (imu_SubNumber + subsOverwride > 0 && new_imu_data)
   {
     lastTs_imu = ts_imu;
 
@@ -3726,6 +3828,10 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     }
 
     sensors_data_published = true;
+    if (saveRosbags_)
+    {
+      outBag_sensorData.write("/zed2i/zed_node/imu/data", ts_imu, *imuMsg);
+    }
     mPubImu.publish(imuMsg);
   } /*else {
       NODELET_DEBUG("No new IMU DATA");
@@ -3811,7 +3917,8 @@ void ZEDWrapperNodelet::device_poll_thread_func()
   // Timestamp initialization
   if (mSvoMode)
   {
-    mFrameTimestamp = ros::Time::now();
+    //mFrameTimestamp = ros::Time::now();
+    mFrameTimestamp = sl_tools::slTime2Ros(mZed.getTimestamp(sl::TIME_REFERENCE::CURRENT));
   }
   else
   {
@@ -3936,7 +4043,7 @@ void ZEDWrapperNodelet::device_poll_thread_func()
                     rightRawSubnumber + rgbGraySubnumber + rgbGrayRawSubnumber + leftGraySubnumber +
                     leftGrayRawSubnumber + rightGraySubnumber + rightGrayRawSubnumber + depthSubnumber +
                     disparitySubnumber + cloudSubnumber + poseSubnumber + poseCovSubnumber + odomSubnumber +
-                    confMapSubnumber + pathSubNumber + stereoSubNumber + stereoRawSubNumber + objDetSubnumber) > 0);
+                    confMapSubnumber + pathSubNumber + stereoSubNumber + stereoRawSubNumber + objDetSubnumber + subsOverwride) > 0);
 
     // Run the loop only if there is some subscribers or SVO is active
     if (mGrabActive)
@@ -3947,7 +4054,7 @@ void ZEDWrapperNodelet::device_poll_thread_func()
       mPosTrackingRequired =
           !mDepthDisabled && (mPosTrackingEnabled || mPosTrackingStarted || mMappingEnabled || mObjDetEnabled ||
                               (mComputeDepth & mDepthStabilization) || poseSubnumber > 0 || poseCovSubnumber > 0 ||
-                              odomSubnumber > 0 || pathSubNumber > 0);
+                              odomSubnumber + subsOverwride > 0 || pathSubNumber > 0);
 
       // Start the tracking?
       if (mPosTrackingRequired && !mPosTrackingStarted)
@@ -3978,7 +4085,7 @@ void ZEDWrapperNodelet::device_poll_thread_func()
       mComputeDepth = !mDepthDisabled &&
                       (mPosTrackingRequired ||
                        ((depthSubnumber + disparitySubnumber + cloudSubnumber + fusedCloudSubnumber + poseSubnumber +
-                         poseCovSubnumber + odomSubnumber + confMapSubnumber + objDetSubnumber) > 0));
+                         poseCovSubnumber + odomSubnumber + confMapSubnumber + objDetSubnumber + subsOverwride) > 0));
 
       // ----> Depth runtime parameters
       if (mComputeDepth)
@@ -4013,9 +4120,23 @@ void ZEDWrapperNodelet::device_poll_thread_func()
         }
         else if (mSvoMode && mGrabStatus == sl::ERROR_CODE::END_OF_SVOFILE_REACHED)
         {
-          NODELET_WARN("SVO reached the end. The node will be stopped.");
+          if (saveRosbags_)
+          {
+            NODELET_WARN("SVO reached the end. The node will be stopped.");
+            outBag_sensorData.close();
+            outBag_images.close();
+            outBag_depthAndConfidence.close();
+          }
+
           mZed.close();
           exit(EXIT_SUCCESS);
+          if (saveRosbags_)
+          {
+            ros::shutdown();
+            raise(SIGINT);
+            raise(SIGABRT);
+            exit(-1);
+          }
         }
         else if (!mRemoteStreamAddr.empty())
         {
@@ -4087,7 +4208,8 @@ void ZEDWrapperNodelet::device_poll_thread_func()
       // ----> Timestamp
       if (mSvoMode)
       {
-        mFrameTimestamp = ros::Time::now();
+        // mFrameTimestamp = ros::Time::now();
+        mFrameTimestamp = sl_tools::slTime2Ros(mZed.getTimestamp(sl::TIME_REFERENCE::IMAGE));
       }
       else
       {
@@ -4516,11 +4638,13 @@ void ZEDWrapperNodelet::callback_updateDiagnostic(diagnostic_updater::Diagnostic
 
       if (mSvoMode)
       {
+        
         int frame = mZed.getSVOPosition();
         int totFrames = mZed.getSVONumberOfFrames();
         double svo_perc = 100. * (static_cast<double>(frame) / totFrames);
 
         stat.addf("Playing SVO", "Frame: %d/%d (%.1f%%)", frame, totFrames, svo_perc);
+        printf("Playing SVO: Frame %d/%d (%.1f%%)\n", frame, totFrames, svo_perc);
       }
 
       if (mComputeDepth)
@@ -5749,6 +5873,7 @@ void ZEDWrapperNodelet::publishOdomTF(ros::Time t)
 
   // Publish transformation
   mTfBroadcaster.sendTransform(transformStamped);
+  outBag_sensorData.write("/tf", t, transformStamped);
 }
 
 void ZEDWrapperNodelet::publishPoseTF(ros::Time t)

@@ -1,0 +1,12 @@
+general:
+    verbose:                    false                           # Enable info message by the ZED SDK
+    svo_realtime:               false
+    pub_frame_rate:             120.0
+    self_calib:                 true
+    save_grandtour_rosbags:     true
+pos_tracking:
+    pos_tracking_enabled:       true
+    area_memory:                false
+depth:
+    depth_mode:                 'ULTRA'                         # 'NONE', 'PERFORMANCE', 'QUALITY', 'ULTRA', 'NEURAL', `NEURAL_PLUS`
+    openni_depth_mode:          false

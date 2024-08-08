@@ -41,9 +41,26 @@ if (OPENMP_FOUND)
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
+find_package(OpenCV REQUIRED PATHS "/usr/local/") # what to do about this one?
+# If OpenCV is found
+if (${OpenCV_FOUND})
+  message("OpenCV version: ${OpenCV_VERSION}")
+  find_package(cv_bridge REQUIRED)
+  add_definitions(-DOPENCV_AVAILABLE)
+endif()
+
+if (OpenCV_CUDA_VERSION)
+  # Found OpenCV with CUDA support
+  message("OpenCV CUDA version: ${OpenCV_CUDA_VERSION}")
+  add_definitions(-DOPENCV_CUDA_AVAILABLE)
+else()
+  message("OpenCV CUDA not found")
+endif()
+
 find_package(catkin REQUIRED COMPONENTS
     roscpp
     image_transport
+    compressed_depth_image_transport
     rosconsole
     sensor_msgs
     stereo_msgs
@@ -57,6 +74,8 @@ find_package(catkin REQUIRED COMPONENTS
     diagnostic_updater    
     dynamic_reconfigure
     zed_interfaces
+    rosbag
+    cv_bridge
 )
 
 generate_dynamic_reconfigure_options(
@@ -71,6 +90,7 @@ catkin_package(
     stereo_msgs
     message_filters
     image_transport
+    compressed_depth_image_transport
     dynamic_reconfigure
     tf2_ros
     tf2_geometry_msgs
@@ -78,6 +98,7 @@ catkin_package(
     zed_interfaces
     geometry_msgs
     visualization_msgs
+    cv_bridge
 )
 
 ###############################################################################
@@ -117,6 +138,7 @@ set(LINK_LIBRARIES
   ${catkin_LIBRARIES}
   ${ZED_LIBRARIES}
   ${CUDA_LIBRARIES}
+  ${OpenCV_LIBRARIES}
   stdc++fs
 )
 

@@ -137,6 +137,15 @@
     </joint>
 
 
+  <xacro:if value="${model == 'zed2i'}">
+    <link name="zed2i_imu_link" />
+    <joint name="zed2i_imu_joint" type="fixed">
+      <parent link="zed2i_left_camera_frame"/>
+      <child link="zed2i_imu_link"/>
+      <origin xyz="-0.002000 -0.023061 0.000217" rpy="-0.0036659 0.0004207 -0.0130222" />
+    </joint>
+  </xacro:if>
+
     <!-- ZED2 Sensors -->
     <xacro:if value="${model == 'zed2'}">
       <link name="${name}_mag_link" />

@@ -22,11 +22,14 @@
     <depend>stereo_msgs</depend>
     <depend>message_filters</depend>
     <depend>image_transport</depend>
+    <depend>compressed_depth_image_transport</depend>
     <depend>dynamic_reconfigure</depend>
     <depend>nodelet</depend>
     <depend>diagnostic_updater</depend>
     <depend>geometry_msgs</depend>
     <depend>visualization_msgs</depend>    
+    <depend>rosbag</depend>
+    <depend>cv_bridge</depend>
 
     <build_depend>zed_interfaces</build_depend>
 
@@ -36,6 +39,7 @@
     <exec_depend>robot_state_publisher</exec_depend>
     <exec_depend>message_runtime</exec_depend>
     <exec_depend>image_transport_plugins</exec_depend>
+    <exec_depend>compressed_depth_image_transport_plugins</exec_depend>
   
     <export>
          <nodelet plugin="${prefix}/nodelet_plugins.xml"/>

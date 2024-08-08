@@ -28,7 +28,16 @@
 #include <image_transport/image_transport.h>
 #include <nodelet/nodelet.h>
 #include <ros/ros.h>
+#include <rosbag/bag.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/CompressedImage.h>
+#include <cv_bridge/cv_bridge.h>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include "compressed_depth_image_transport/codec.h"
+#include "compressed_depth_image_transport/compression_common.h"
+#include "compressed_depth_image_transport/rvl_codec.h"
+
 #include <tf2/LinearMath/Transform.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_broadcaster.h>
@@ -233,7 +242,7 @@ protected:
    * \param t : the ros::Time to stamp the image
    */
   void publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat img, image_transport::CameraPublisher& pubImg,
-                    sensor_msgs::CameraInfoPtr camInfoMsg, std::string imgFrameId, ros::Time t);
+                    sensor_msgs::CameraInfoPtr camInfoMsg, std::string imgFrameId, ros::Time t, std::string saveStopicName ="");
 
   /*! \brief Publish a sl::Mat depth image with a ros Publisher
    * \param imgMsgPtr : the depth image topic message to publish
@@ -476,6 +485,13 @@ protected:
    */
   bool saveAreaMap(std::string file_path, std::string* out_msg = nullptr);
 
+  std::string buildUpLogFilename(const std::string& typeSuffix, const std::string& extension);
+
+  // Output bags
+  rosbag::Bag outBag_images;
+  rosbag::Bag outBag_sensorData;
+  rosbag::Bag outBag_depthAndConfidence;
+
 private:
   uint64_t mFrameCount = 0;
 
@@ -633,6 +649,8 @@ private:
   double mCamMinDepth;
   double mCamMaxDepth;
   std::string mClickedPtTopic = "/clicked_point";
+  uint32_t subsOverwride = 1;
+  bool saveRosbags_ = false;
 
   // Positional tracking
   bool mPosTrackingEnabled = false;
