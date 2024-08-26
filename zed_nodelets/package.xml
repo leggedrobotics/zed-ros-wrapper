@@ -30,6 +30,7 @@
     <depend>visualization_msgs</depend>    
     <depend>rosbag</depend>
     <depend>cv_bridge</depend>
+    <depend>tf</depend>
 
     <build_depend>zed_interfaces</build_depend>
 

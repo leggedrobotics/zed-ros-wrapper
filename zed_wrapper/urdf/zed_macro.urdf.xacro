@@ -136,13 +136,19 @@
       <child link="${name}_right_camera_optical_frame"/>
     </joint>
 
-
+  <!-- IMU -->
+  <!--   rotation: 
+    x: -0.00183512
+    y: 0.000211432
+    z: -0.00651105
+    w: 0.999977
+ -->
   <xacro:if value="${model == 'zed2i'}">
     <link name="zed2i_imu_link" />
     <joint name="zed2i_imu_joint" type="fixed">
       <parent link="zed2i_left_camera_frame"/>
       <child link="zed2i_imu_link"/>
-      <origin xyz="-0.002000 -0.023061 0.000217" rpy="-0.0036659 0.0004207 -0.0130222" />
+      <origin xyz="-0.002000 -0.023061 0.000217" rpy="-0.00367291 0.00039895 -0.013022948" />
     </joint>
   </xacro:if>
 

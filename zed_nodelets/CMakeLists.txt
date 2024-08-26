@@ -76,6 +76,7 @@ find_package(catkin REQUIRED COMPONENTS
     zed_interfaces
     rosbag
     cv_bridge
+    tf
 )
 
 generate_dynamic_reconfigure_options(
@@ -133,7 +134,7 @@ link_directories(${CUDA_LIBRARY_DIRS})
 ###############################################################################
 # ZED WRAPPER NODELET
 
-add_definitions(-std=c++11 -Wno-deprecated-declarations)
+add_definitions(-std=c++17 -Wno-deprecated-declarations)
 set(LINK_LIBRARIES
   ${catkin_LIBRARIES}
   ${ZED_LIBRARIES}
