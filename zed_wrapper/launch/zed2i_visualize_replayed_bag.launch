@@ -1,0 +1,121 @@
+<?xml version="1.0"?>
+<!--
+Copyright (c) 2023, STEREOLABS.
+
+All rights reserved.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+-->
+<launch>
+    <!-- Camera Model and Name -->
+    <arg name="image_rosbag_path" default="$(find zed_wrapper)/data/zed2iRosbag_images.bag"/>
+    <arg name="depth_rosbag_path" default="$(find zed_wrapper)/data/zed2iRosbag_depth.bag"/>
+    <arg name="sensor_rosbag_path" default="$(find zed_wrapper)/data/zed2iRosbag_sensorData.bag"/>
+
+    <param name="/use_sim_time" value="true"/>
+    <arg name="camera_name"           default="zed2i" /> <!-- The name you want -->
+    <arg name="camera_model"          default="zed2i" /> <!-- 'zed' or 'zedm' or 'zed2' -->
+
+    <!-- Base frame -->
+    <!-- Importantly, this can't be zed2i_base_link as it belongs to the sensor. -->
+    <arg name="base_frame"            default="zed_base_link" />
+
+    <!-- Publish ZED urdf -->
+    <arg name="publish_urdf"          default="true" />
+
+    <!-- Position respect to base frame (i.e. "base_link) -->
+    <arg name="cam_pos_x"             default="0.0" />
+    <arg name="cam_pos_y"             default="0.0" />
+    <arg name="cam_pos_z"             default="0.0" />
+
+    <!-- Orientation respect to base frame (i.e. "base_link) -->
+    <arg name="cam_roll"              default="0.0" />
+    <arg name="cam_pitch"             default="0.0" />
+    <arg name="cam_yaw"               default="0.0" />
+
+    <!-- ROS URDF description of the ZED -->
+    <group if="$(arg publish_urdf)">
+        <param name="$(arg camera_name)_description"
+               command="$(find xacro)/xacro '$(find zed_wrapper)/urdf/zed_descr.urdf.xacro'
+                        camera_name:=$(arg camera_name)
+                        camera_model:=$(arg camera_model)
+                        base_frame:=$(arg base_frame)
+                        cam_pos_x:=$(arg cam_pos_x)
+                        cam_pos_y:=$(arg cam_pos_y)
+                        cam_pos_z:=$(arg cam_pos_z)
+                        cam_roll:=$(arg cam_roll)
+                        cam_pitch:=$(arg cam_pitch)
+                        cam_yaw:=$(arg cam_yaw)"
+        />
+
+        <node name="$(arg camera_name)_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen" required="true">
+            <remap from="robot_description" to="$(arg camera_name)_description" />
+        </node>
+    </group>
+
+  <!-- TF for Gps Frame -->
+  <!-- x y z yaw pitch roll frame_id child_frame_id period_in_ms -->
+  <!-- x y z qx qy qz qw frame_id child_frame_id  period_in_ms-->
+  <!-- [ x: -1.5707963, y: 0, z: -1.5707963 ] -->
+  <!-- { 0.5, -0.5, 0.5, -0.5 -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="base_to_Base" args="0 0 0 0 0 0 1 zed_base_link zed2i_base_link 10" /> -->
+
+
+    <!-- convert sensor_msgs/CompressedImage to sensor_msgs/Image  -->
+    <node name="image_transport_left" pkg="image_transport" type="republish" args="compressed in:=/zed2i/zed_node/left/image_rect_color raw out:=/zed2i/zed_node/left/image_rect_color" />
+    <node name="image_transport_right" pkg="image_transport" type="republish" args="compressed in:=/zed2i/zed_node/right/image_rect_color raw out:=/zed2i/zed_node/right/image_rect_color" />
+    <node name="image_transport_depth_mono" pkg="image_transport" type="republish" args="compressed in:=/zed2i/zed_node/depth_mono/depth_registered raw out:=/zed2i/zed_node/depth_mono/depth_registered" />
+    <node name="image_transport_depth_conf" pkg="image_transport" type="republish" args="compressed in:=/zed2i/zed_node/confidence_mono/confidence_map raw out:=/zed2i/zed_node/confidence_mono/confidence_map" />
+    
+    <node pkg="rviz" name="rviz" type="rviz" args="-d '$(find zed_wrapper)/rviz/rviz.rviz'" required="true"/>
+    
+    <node name="image_view_left" 
+          pkg="image_view" 
+          type="image_view" 
+          respawn="false" 
+          output="screen" >
+      <param name="image_transport" value="compressed" />
+      <remap from="image" to="/zed2i/zed_node/left/image_rect_color" />           
+    </node> 
+
+    <node name="image_view_right" 
+          pkg="image_view" 
+          type="image_view" 
+          respawn="false" 
+          output="screen" >
+      <param name="image_transport" value="compressed" />
+      <remap from="image" to="/zed2i/zed_node/right/image_rect_color" />           
+    </node> 
+
+    <node name="image_view_depth_mono" 
+          pkg="image_view" 
+          type="image_view" 
+          respawn="false" 
+          output="screen" >
+      <param name="image_transport" value="compressed" />
+      <remap from="image" to="/zed2i/zed_node/depth_mono/depth_registered" />           
+    </node> 
+
+    <node name="image_view_depth_conf" 
+          pkg="image_view" 
+          type="image_view" 
+          respawn="false" 
+          output="screen" >
+      <param name="image_transport" value="compressed" />
+      <remap from="image" to="/zed2i/zed_node/confidence_mono/confidence_map" />           
+    </node> 
+
+    <node pkg="rosbag" type="play" name="player" output="screen" launch-prefix="xterm -bg lightblue -fg darkslategrey -bd plum -bw 10 -geometry 80x40-50+250 -e " args="--clock -r 1 $(arg sensor_rosbag_path) $(arg image_rosbag_path) $(arg depth_rosbag_path)"/>
+
+
+</launch>

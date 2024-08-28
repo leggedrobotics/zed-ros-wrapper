@@ -28,7 +28,17 @@
 #include <image_transport/image_transport.h>
 #include <nodelet/nodelet.h>
 #include <ros/ros.h>
+#include <rosbag/bag.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/CompressedImage.h>
+#include <cv_bridge/cv_bridge.h>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <compressed_depth_image_transport/codec.h>
+#include <compressed_depth_image_transport/compression_common.h>
+#include <compressed_depth_image_transport/rvl_codec.h>
+//  #include <opencv2/imgcodecs/legacy/constants_c.h>
+
 #include <tf2/LinearMath/Transform.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_broadcaster.h>
@@ -233,7 +243,7 @@ protected:
    * \param t : the ros::Time to stamp the image
    */
   void publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat img, image_transport::CameraPublisher& pubImg,
-                    sensor_msgs::CameraInfoPtr camInfoMsg, std::string imgFrameId, ros::Time t);
+                    sensor_msgs::CameraInfoPtr camInfoMsg, std::string imgFrameId, ros::Time t, std::string saveStopicName ="");
 
   /*! \brief Publish a sl::Mat depth image with a ros Publisher
    * \param imgMsgPtr : the depth image topic message to publish
@@ -242,9 +252,22 @@ protected:
    */
   void publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat depth, ros::Time t);
 
+  void depthToCV8UC1(const cv::Mat& float_img, cv::Mat& mono8_img);
+  void depthConversionCallback(const sensor_msgs::ImagePtr& original_image, cv::Mat& depth_mono8_img);
+
   /*! \brief Publish a single pointCloud with a ros Publisher
    */
   void publishPointCloud();
+
+  int myCompressRVL(const uint16_t * input, unsigned char * output, int numPixels);
+  void myEncodeVLE(int value);
+
+
+ sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(
+     const sensor_msgs::Image& message,
+     const std::string& compression_format,
+     double depth_max, double depth_quantization, int png_level);
+
 
   /*! \brief Publish a fused pointCloud with a ros Publisher
    */
@@ -476,6 +499,13 @@ protected:
    */
   bool saveAreaMap(std::string file_path, std::string* out_msg = nullptr);
 
+  std::string buildUpLogFilename(const std::string& typeSuffix, const std::string& extension);
+
+  // Output bags
+  rosbag::Bag outBag_images;
+  rosbag::Bag outBag_sensorData;
+  rosbag::Bag outBag_depthAndConfidence;
+
 private:
   uint64_t mFrameCount = 0;
 
@@ -593,6 +623,15 @@ private:
   std::string mCloudFrameId;
   std::string mPointCloudFrameId;
 
+  int *buffer_;
+  int *pBuffer_;
+  int word_;
+  int nibblesWritten_;
+
+  bool savedSampleImage_ = false;
+  bool savedSampleDepth_ = false;
+  bool savedSampleConfidence_ = false;
+
   std::string mMapFrameId = "map";
   std::string mOdomFrameId = "odom";
   std::string mBaseFrameId = "base_link";
@@ -633,6 +672,12 @@ private:
   double mCamMinDepth;
   double mCamMaxDepth;
   std::string mClickedPtTopic = "/clicked_point";
+  uint32_t subsOverwride = 1;
+  bool saveRosbags_ = false;
+  std::string compressionType_ = "jpg";
+  std::string depthCompressionType_ = "jpg";
+  std::string saveRosbagsString_ = "";
+  ros::Time last_stamp2;
 
   // Positional tracking
   bool mPosTrackingEnabled = false;
@@ -754,12 +799,14 @@ private:
   std::mutex mCamDataMutex;
   std::mutex mPcMutex;
   std::mutex mRecMutex;
+  std::mutex mRosBagMutex;
   std::mutex mPosTrkMutex;
   std::mutex mOdomMutex;
   std::mutex mDynParMutex;
   std::mutex mMappingMutex;
   std::mutex mObjDetMutex;
   std::condition_variable mPcDataReadyCondVar;
+  std::string zed_wrapperPath_ = std::string("");
   bool mPcDataReady;
 
   // Point cloud variables
@@ -786,6 +833,7 @@ private:
   // Camera IMU transform
   sl::Transform mSlCamImuTransf;
   geometry_msgs::TransformStamped mStaticImuTransformStamped;
+  tf2_msgs::TFMessage collectiontfMessage_;
 
   // Spatial mapping
   bool mMappingEnabled;

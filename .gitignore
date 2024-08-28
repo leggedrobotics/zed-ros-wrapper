@@ -39,4 +39,4 @@ CMakeLists.txt.user*
 
 #VSCode
 *vscode*
-
+/zed_wrapper/data/

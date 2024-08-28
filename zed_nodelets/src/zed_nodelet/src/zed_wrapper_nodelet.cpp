@@ -21,6 +21,8 @@
 #include <chrono>
 #include <csignal>
 #include <sstream>
+#include <filesystem>
+#include "tf/tf.h"
 
 #include "zed_wrapper_nodelet.hpp"
 
@@ -29,7 +31,6 @@
 #ifndef NDEBUG
 #include <ros/console.h>
 #endif
-
 #include <zed_interfaces/Object.h>
 #include <zed_interfaces/ObjectsStamped.h>
 #include <zed_interfaces/PlaneStamped.h>
@@ -53,7 +54,7 @@ ZEDWrapperNodelet::ZEDWrapperNodelet() : Nodelet()
 
 ZEDWrapperNodelet::~ZEDWrapperNodelet()
 {
-  // std::cerr << "Destroying " << getName() << std::endl;
+  std::cerr << "Destroying: " << getName() << std::endl;
 
   if (mDevicePollThread.joinable())
   {
@@ -113,8 +114,36 @@ void ZEDWrapperNodelet::onInit()
   }
 
   readParameters();
-
   initTransforms();
+
+  if (saveRosbags_)
+  {
+    subsOverwride = 1;
+    bool created_new_directory = false; 
+    try {
+      std::string pkgPath = ros::package::getPath("zed_wrapper");
+      NODELET_WARN_STREAM("Rosbag saving is active. Ensure the computer has enough space to save the bag file. Saving to: " << pkgPath);
+
+      created_new_directory
+          = std::filesystem::create_directory(pkgPath +"/data/");
+    } catch(std::exception & e){
+      NODELET_ERROR("Coudln't create directory");
+    }
+
+    zed_wrapperPath_ = ros::package::getPath("zed_wrapper");
+    std::string outBagPathSensorData_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_sensorData", ".bag");
+    std::string outBagPathDepth_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_depth", ".bag");
+    std::string outBagPathImages_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_images", ".bag");
+    std::remove(outBagPathSensorData_.c_str());
+    std::remove(outBagPathDepth_.c_str());
+    std::remove(outBagPathImages_.c_str());
+    outBag_sensorData.open(outBagPathSensorData_, rosbag::bagmode::Write);
+    outBag_depthAndConfidence.open(outBagPathDepth_, rosbag::bagmode::Write);
+    outBag_images.open(outBagPathImages_, rosbag::bagmode::Write);
+  }else{
+    NODELET_ERROR("Replaying but Not saving rosbags");
+    subsOverwride = 0;
+  }
 
   // Set the video topic names
   std::string rgbTopicRoot = "rgb";
@@ -442,9 +471,6 @@ void ZEDWrapperNodelet::onInit()
   updateDynamicReconfigure();
   // <---- Dynamic Reconfigure parameters
 
-  // ----> Publishers
-  NODELET_INFO("*** PUBLISHERS HELLO CHANGES ***");
-
   // Image publishers
   image_transport::ImageTransport it_zed(mNhNs);
 
@@ -619,8 +645,8 @@ void ZEDWrapperNodelet::onInit()
       mCameraImuTransfMgs->translation.y = sl_tr.y;
       mCameraImuTransfMgs->translation.z = sl_tr.z;
 
-      NODELET_DEBUG("Camera-IMU Rotation: \n %s", sl_rot.getRotationMatrix().getInfos().c_str());
-      NODELET_DEBUG("Camera-IMU Translation: \n %g %g %g", sl_tr.x, sl_tr.y, sl_tr.z);
+      NODELET_INFO("Camera-IMU Rotation: \n %s", sl_rot.getRotationMatrix().getInfos().c_str());
+      NODELET_INFO("Camera-IMU Translation: \n %g %g %g", sl_tr.x, sl_tr.y, sl_tr.z);
 
       mPubCamImuTransf.publish(mCameraImuTransfMgs);
 
@@ -664,7 +690,24 @@ void ZEDWrapperNodelet::onInit()
   // <---- Threads
 
   NODELET_INFO("+++ ZED Node started +++");
+
 }
+
+std::string ZEDWrapperNodelet::buildUpLogFilename(const std::string& typeSuffix, const std::string& extension) {
+  // ros::WallTime stamp = ros::WallTime::now();
+  // std::stringstream ss;
+  // ss << stamp.sec << "_" << stamp.nsec;
+
+  // Find ros package directory
+  std::string pkgPath = ros::package::getPath("zed_wrapper");
+
+  // Add prefixes.
+  // Not sure if adding time is the best thing to do since we dont keep a ring buffer.
+  // std::string filename = slam_->mapSavingFolderPath_ + typeSuffix + ss.str() + extension;
+  std::string filename = pkgPath + "/data/" + typeSuffix + extension;
+
+  return filename;
+  }
 
 void ZEDWrapperNodelet::initServices()
 {
@@ -1255,6 +1298,10 @@ void ZEDWrapperNodelet::readParameters()
   readGeneralParams();
   // <---- General
 
+  // ----> Dynamic
+  readDynParams();
+  // <---- Dynamic
+
   // ----> Video
   // NODELET_INFO_STREAM("*** VIDEO PARAMETERS ***");
   // Note: there are no "static" video parameters
@@ -1263,10 +1310,6 @@ void ZEDWrapperNodelet::readParameters()
   // -----> Depth
   readDepthParams();
   // <----- Depth
-
-  // ----> Dynamic
-  void readDynParams();
-  // <---- Dynamic
 
   // ----> Positional Tracking
   readPosTrkParams();
@@ -1297,6 +1340,25 @@ void ZEDWrapperNodelet::readParameters()
   mNhNs.getParam("pos_tracking/map_frame", mMapFrameId);
   mNhNs.getParam("pos_tracking/odometry_frame", mOdomFrameId);
   mNhNs.getParam("general/base_frame", mBaseFrameId);
+  mNhNs.getParam("general/save_grandtour_rosbags", saveRosbags_);
+  mNhNs.getParam("general/saved_image_compression_type", compressionType_); // jpg or png
+  mNhNs.getParam("general/saved_depth_compression_type", depthCompressionType_); // jpg or png
+
+  NODELET_WARN_STREAM("Depth Image Compression Type: " << depthCompressionType_);
+  NODELET_WARN_STREAM("RGB Image Compression Type: " << compressionType_);
+  // mBaseFrameId = "zed2i_base_link";
+  NODELET_WARN_STREAM("BASE FRAME IS OVERWRITTEN TO: " << mBaseFrameId);
+
+  // Convert from string to bool
+  if (saveRosbagsString_ == "false")
+  {
+    saveRosbags_ = false;
+  }
+
+  if (saveRosbagsString_ == "true")
+  {
+    saveRosbags_ = true;
+  }
 
   mCameraFrameId = mCameraName + "_camera_center";
   mImuFrameId = mCameraName + "_imu_link";
@@ -2285,13 +2347,13 @@ void ZEDWrapperNodelet::publishOdom(tf2::Transform odom2baseTransf, sl::Pose& sl
 {
   size_t odomSub = mPubOdom.getNumSubscribers();
 
-  if (odomSub)
+  if (odomSub + subsOverwride)
   {
     nav_msgs::OdometryPtr odomMsg = boost::make_shared<nav_msgs::Odometry>();
 
     odomMsg->header.stamp = t;
-    odomMsg->header.frame_id = mOdomFrameId;  // frame
-    odomMsg->child_frame_id = mBaseFrameId;   // camera_frame
+    odomMsg->header.frame_id = mOdomFrameId;  // odometry frame
+    odomMsg->child_frame_id = mBaseFrameId;   // base frame
 
     // Add all value in odometry message
     odomMsg->pose.pose.position.x = odom2baseTransf.getOrigin().x();
@@ -2318,6 +2380,11 @@ void ZEDWrapperNodelet::publishOdom(tf2::Transform odom2baseTransf, sl::Pose& sl
 
     // Publish odometry message
     NODELET_DEBUG("Publishing ODOM message");
+    if (saveRosbags_)
+    {
+      std::lock_guard<std::mutex> lock(mRosBagMutex);
+      outBag_sensorData.write("/zed2i/zed_node/odom", t, *odomMsg);
+    }
     mPubOdom.publish(odomMsg);
   }
 }
@@ -2410,41 +2477,232 @@ void ZEDWrapperNodelet::publishStaticImuFrame()
   mStaticImuTransformStamped.transform.rotation.w = sl_or.ow;
 
   // Publish transformation
-  mStaticTfBroadcaster.sendTransform(mStaticImuTransformStamped);
+  // Removed since added to static_transform_publisher
+  // if (!saveRosbags_)
+  // {
+  //   mStaticTfBroadcaster.sendTransform(mStaticImuTransformStamped);
+  // }
 
   NODELET_INFO_STREAM("Published static transform '" << mImuFrameId << "' -> '" << mLeftCamFrameId << "'");
+
+  // The transform is 
+  NODELET_INFO_STREAM("Transform: '" << mStaticImuTransformStamped);
+
 
   mStaticImuFramePublished = true;
 }
 
 void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat img,
                                      image_transport::CameraPublisher& pubImg, sensor_msgs::CameraInfoPtr camInfoMsg,
-                                     std::string imgFrameId, ros::Time t)
+                                     std::string imgFrameId, ros::Time t, std::string saveName)
 {
-  NODELET_INFO_THROTTLE(2.0, "Recording rosbag with original timestamps.");
   camInfoMsg->header.stamp = t;
   imgMsgPtr->header.stamp = t;
   sl_tools::imageToROSmsg(imgMsgPtr, img, imgFrameId, t);
+
+  if (saveRosbags_)
+  {
+    if (saveName != "")
+    {
+      sensor_msgs::CompressedImage compressedImage;
+      compressedImage.header = imgMsgPtr->header;
+      compressedImage.format = sensor_msgs::image_encodings::BGRA8;
+
+      //Original images are in bgra8 encoding
+      cv::Mat colorImg = cv_bridge::toCvCopy(*imgMsgPtr, sensor_msgs::image_encodings::BGRA8)->image;
+      std::string image_path = zed_wrapperPath_ + "/data/" +imgFrameId+ ".jpg";
+
+      if (!savedSampleImage_)
+      {
+        cv::Mat img = cv::imread(image_path, cv::IMREAD_COLOR);
+        
+        // cv::cvtColor(colorImg, colorImg, cv::COLOR_BGRA2BGR);
+        std::vector<int> Savecompression_params = {cv::IMWRITE_JPEG_QUALITY, 95};
+        cv::imwrite(image_path, colorImg, Savecompression_params);
+        if (!img.empty())
+        {
+          savedSampleImage_ = true;
+        }
+      }
+
+      if (compressionType_ == "png")
+      {
+        // PNG compression level, 9 == full , 0  == none
+        compressedImage.format += "; compressed png";
+        std::vector<int> param = {cv::IMWRITE_PNG_COMPRESSION, 5};
+        cv::imencode(".png", colorImg, compressedImage.data, param);
+      }
+      else if ((compressionType_ == "jpeg") || (compressionType_ == "jpg"))
+      {
+        compressedImage.format += "; compressed jpeg";
+        std::vector<int> param = {cv::IMWRITE_JPEG_QUALITY, 95};
+        cv::imencode(".jpg", colorImg, compressedImage.data, param);
+      }
+      else
+      {
+        NODELET_ERROR("UNDEFINED COMPRESSION TYPE. Please set 'compressionType' parameter to 'png' or 'jpeg'");
+      }
+      {
+        std::lock_guard<std::mutex> lock(mRosBagMutex);
+        outBag_images.write( saveName + "/image_rect_color/compressed", t, compressedImage);
+        outBag_images.write( saveName + "/camera_info", t, *camInfoMsg);
+      }
+    }
+  }
+  
   pubImg.publish(imgMsgPtr, camInfoMsg);
+}
+
+void ZEDWrapperNodelet::depthConversionCallback(const sensor_msgs::ImagePtr& original_image, cv::Mat& depth_mono8_img)
+{
+    cv_bridge::CvImagePtr cv_ptr;
+    //Convert from the ROS image message to a CvImage suitable for working with OpenCV for processing
+    try
+    {
+        //Always copy, returning a mutable CvImage
+        //OpenCV expects color images to use BGR channel order.
+        cv_ptr = cv_bridge::toCvCopy(original_image, sensor_msgs::image_encodings::TYPE_32FC1);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+        //if there is an error during conversion, display it
+        ROS_ERROR("tutorialROSOpenCV::main.cpp::cv_bridge exception: %s", e.what());
+        return;
+    }
+
+    cv::Mat depth_float_img = cv_ptr->image;
+    // cv::Mat depth_mono8_img;
+    depthToCV8UC1(depth_float_img, depth_mono8_img);
+
+}
+
+void ZEDWrapperNodelet::depthToCV8UC1(const cv::Mat& float_img, cv::Mat& mono8_img){
+  //Process images
+  if(mono8_img.rows != float_img.rows || mono8_img.cols != float_img.cols){
+    mono8_img = cv::Mat(float_img.size(), CV_8UC1);}
+  cv::convertScaleAbs(float_img, mono8_img, 100, 0.0); // This scale is arbitrary?
+  //The following doesn't work due to NaNs
+  //double minVal, maxVal; 
+  //minMaxLoc(float_img, &minVal, &maxVal);
+  //ROS_DEBUG("Minimum/Maximum Depth in current image: %f/%f", minVal, maxVal);
+  //mono8_img = cv::Scalar(0);
+  //cv::line( mono8_img, cv::Point2i(10,10),cv::Point2i(200,100), cv::Scalar(255), 3, 8);
 }
 
 void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat depth, ros::Time t)
 {
   mDepthCamInfoMsg->header.stamp = t;
+  imgMsgPtr->header.stamp = t;
 
   // NODELET_DEBUG_STREAM("mOpenniDepthMode: " << mOpenniDepthMode);
 
-  if (!mOpenniDepthMode)
-  {
+  // if (!mOpenniDepthMode)
+  // {
     // NODELET_INFO("Using float32");
     sl_tools::imageToROSmsg(imgMsgPtr, depth, mDepthOptFrameId, t);
-    mPubDepth.publish(imgMsgPtr, mDepthCamInfoMsg);
 
-    return;
-  }
+    if (saveRosbags_)
+    {
+      sensor_msgs::CompressedImage depthMapCompressedImage;
+      depthMapCompressedImage.header = imgMsgPtr->header;
+      depthMapCompressedImage.format = sensor_msgs::image_encodings::MONO8;
 
-  // NODELET_INFO("Using depth16");
-  sl_tools::imageToROSmsg(imgMsgPtr, depth, mDepthOptFrameId, t);
+      cv::Mat mono8Depth;
+      // sensor_msgs::Image confMono8Msg;
+      // confMono8Msg.encoding = sensor_msgs::image_encodings::MONO8;
+      depthConversionCallback(imgMsgPtr, mono8Depth);
+      cv_bridge::CvImage img_bridge;
+      img_bridge = cv_bridge::CvImage(depthMapCompressedImage.header, sensor_msgs::image_encodings::MONO8, mono8Depth);
+
+      if (!savedSampleDepth_)
+      {
+        std::vector<int> Savecompression_params = {cv::IMWRITE_JPEG_QUALITY, 95};
+        cv::imwrite(zed_wrapperPath_ + "/data/example_depth_map.png", img_bridge.image, Savecompression_params);
+        savedSampleDepth_ = true;
+      }
+
+      // img_bridge.toImageMsg(confMono8Msg); // from cv_bridge to sensor_msgs::Image
+
+      // At this point it could be published.
+      if (compressionType_ == "png")
+      {
+        depthMapCompressedImage.format += "; png compressed ";
+        std::vector<int> param = {cv::IMWRITE_PNG_COMPRESSION, 5};
+        cv::imencode(".png", img_bridge.image, depthMapCompressedImage.data, param);
+      }
+      else if ((compressionType_ == "jpeg") || (compressionType_ == "jpg"))
+      {
+        // std::vector<uchar> buf;
+        depthMapCompressedImage.format += "; jpeg compressed ";
+        std::vector<int> param = {cv::IMWRITE_JPEG_QUALITY, 95};
+        cv::imencode(".jpg", img_bridge.image, depthMapCompressedImage.data, param);
+      }
+      else
+      {
+        NODELET_ERROR("UNDEFINED COMPRESSION TYPE. Please set 'compressionType' parameter to 'png' or 'jpeg'");
+      }
+      {
+        std::lock_guard<std::mutex> lock(mRosBagMutex);
+        outBag_depthAndConfidence.write("/zed2i/zed_node/depth_mono/depth_registered/compressed", t, depthMapCompressedImage);
+      }
+      // outBag_depthAndConfidence.write("/zed2i/zed_node/depth_mono/camera_info", t, *mDepthCamInfoMsg);
+
+
+      // cv::Mat depthImg;
+      // if (mOpenniDepthMode)
+      // {
+      //  depthImg = cv_bridge::toCvCopy(*imgMsgPtr, sensor_msgs::image_encodings::TYPE_16UC1)->image;
+      // }else
+      // {
+      //  depthImg = cv_bridge::toCvCopy(*imgMsgPtr, sensor_msgs::image_encodings::TYPE_32FC1)->image;
+      // }
+       
+      // sensor_msgs::Image depthMsg = *imgMsgPtr;
+      // // sensor_msgs::CompressedImage compressedDepthMsg;
+      // // compressedDepthMsg.format = "png";
+      // // compressedDepthMsg.header = imgMsgPtr->header;
+
+      // if (compressionType_ == "png")
+      // {
+      //   // that's compression level, 9 == full , 0 == none
+      //   std::vector<int> param = {cv::IMWRITE_PNG_COMPRESSION, 5};
+      //   cv::imencode(".png", depthImg, depthMsg.data, param);
+      // }
+      // else if ((compressionType_ == "jpeg") || (compressionType_ == "jpg"))
+      // {
+      //   std::vector<int> param = {cv::IMWRITE_JPEG_QUALITY, 95};
+      //   cv::imencode(".jpg", depthImg, depthMsg.data, param);
+      // }
+      // else
+      // {
+      //   NODELET_ERROR("UNDEFINED COMPRESSION TYPE. Please set 'compressionType' parameter to 'png' or 'jpeg'");
+      // }
+
+      // // CV_IMWRITE_PXM_BINARY
+      // // 1 for binary format, 0 for ascii format
+
+    //    sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(
+    //  const sensor_msgs::Image& message,
+    //  const std::string& compression_format,
+    //  double depth_max, double depth_quantization, int png_level)
+
+      sensor_msgs::CompressedImage::Ptr rvlCompressedImage(new sensor_msgs::CompressedImage());
+      // Max depth , quantization, png level
+      rvlCompressedImage = encodeCompressedDepthImage(*imgMsgPtr, depthCompressionType_, 15.0, 100.0, 9);
+
+      {
+        std::lock_guard<std::mutex> lock(mRosBagMutex);
+        outBag_depthAndConfidence.write("/zed2i/zed_node/depth/depth_registered/compressed", t, *rvlCompressedImage);
+        outBag_depthAndConfidence.write("/zed2i/zed_node/depth/camera_info", t, *mDepthCamInfoMsg);
+      }
+    }
+
+  //   mPubDepth.publish(imgMsgPtr, mDepthCamInfoMsg);
+  //   return;
+  // }
+
+  // // NODELET_INFO("Using depth16");
+  // sl_tools::imageToROSmsg(imgMsgPtr, depth, mDepthOptFrameId, t);
   mPubDepth.publish(imgMsgPtr, mDepthCamInfoMsg);
 }
 
@@ -2552,6 +2810,7 @@ void ZEDWrapperNodelet::publishPointCloud()
     sensor_msgs::PointCloud2Modifier modifier(*pointcloudMsg);
     modifier.setPointCloud2Fields(4, "x", 1, sensor_msgs::PointField::FLOAT32, "y", 1, sensor_msgs::PointField::FLOAT32,
                                   "z", 1, sensor_msgs::PointField::FLOAT32, "rgb", 1, sensor_msgs::PointField::FLOAT32);
+    // outBag.write("/zed2i/zed_node/point_cloud/cloud_registered", mPointCloudTime, *pointcloudMsg);
   }
 
   // Data copy
@@ -3009,7 +3268,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
   uint32_t tot_sub = rgbSubnumber + rgbRawSubnumber + leftSubnumber + leftRawSubnumber + rightSubnumber +
                      rightRawSubnumber + rgbGraySubnumber + rgbGrayRawSubnumber + leftGraySubnumber +
                      leftGrayRawSubnumber + rightGraySubnumber + rightGrayRawSubnumber + depthSubnumber +
-                     disparitySubnumber + confMapSubnumber + stereoSubNumber + stereoRawSubNumber;
+                     disparitySubnumber + confMapSubnumber + stereoSubNumber + stereoRawSubNumber + subsOverwride;
 
   bool retrieved = false;
 
@@ -3024,7 +3283,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
   sl::Timestamp grab_ts = 0;
 
   // ----> Retrieve all required image data
-  if (rgbSubnumber + leftSubnumber + stereoSubNumber > 0)
+  if (rgbSubnumber + leftSubnumber + stereoSubNumber + subsOverwride > 0)
   {
     mZed.retrieveImage(mat_left, sl::VIEW::LEFT, sl::MEM::CPU, mMatResol);
     retrieved = true;
@@ -3037,7 +3296,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
     retrieved = true;
     grab_ts = mat_left_raw.timestamp;
   }
-  if (rightSubnumber + stereoSubNumber > 0)
+  if (rightSubnumber + stereoSubNumber + subsOverwride > 0)
   {
     mZed.retrieveImage(mat_right, sl::VIEW::RIGHT, sl::MEM::CPU, mMatResol);
     retrieved = true;
@@ -3073,7 +3332,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
     retrieved = true;
     grab_ts = mat_right_raw_gray.timestamp;
   }
-  if (depthSubnumber > 0)
+  if (depthSubnumber + subsOverwride > 0)
   {
     if (!mOpenniDepthMode)
     {
@@ -3100,7 +3359,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
     retrieved = true;
     grab_ts = mat_disp.timestamp;
   }
-  if (confMapSubnumber > 0)
+  if (confMapSubnumber + subsOverwride > 0)
   {
     mZed.retrieveMeasure(mat_conf, sl::MEASURE::CONFIDENCE, sl::MEM::CPU, mMatResol);
     retrieved = true;
@@ -3110,12 +3369,14 @@ void ZEDWrapperNodelet::pubVideoDepth()
 
   // ----> Data ROS timestamp
   ros::Time stamp = sl_tools::slTime2Ros(grab_ts);
-  if (mSvoMode)
-  {
-    //stamp = ros::Time::now();
-    // Override timestamp to the original SVO timestamp.
-    stamp = sl_tools::slTime2Ros(mZed.getTimestamp(sl::TIME_REFERENCE::IMAGE));  // Use ZED internal timestamp
-  }
+  ros::Time lastZedTsstamp = sl_tools::slTime2Ros(lastZedTs);
+
+  // if (mSvoMode)
+  // {
+  //   // Override timestamp to the original SVO timestamp.
+  //   stamp = sl_tools::slTime2Ros(mZed.getTimestamp(sl::TIME_REFERENCE::IMAGE));  // Use ZED internal timestamp
+  //   std::cout << "stamp: " << stamp << std::endl;
+  // }
   // <---- Data ROS timestamp
 
   // ----> Publish sensor data if sync is required by user or SVO
@@ -3165,10 +3426,10 @@ void ZEDWrapperNodelet::pubVideoDepth()
   // <---- Check if a grab has been done before publishing the same images
 
   // Publish the left = rgb image if someone has subscribed to
-  if (leftSubnumber > 0)
-  {
+  if (leftSubnumber + subsOverwride > 0)
+   {
     sensor_msgs::ImagePtr leftImgMsg = boost::make_shared<sensor_msgs::Image>();
-    publishImage(leftImgMsg, mat_left, mPubLeft, mLeftCamInfoMsg, mLeftCamOptFrameId, stamp);
+    publishImage(leftImgMsg, mat_left, mPubLeft, mLeftCamInfoMsg, mLeftCamOptFrameId, stamp, "/zed2i/zed_node/left");
   }
   if (rgbSubnumber > 0)
   {
@@ -3214,10 +3475,10 @@ void ZEDWrapperNodelet::pubVideoDepth()
   }
 
   // Publish the right image if someone has subscribed to
-  if (rightSubnumber > 0)
+  if (rightSubnumber + subsOverwride > 0)
   {
     sensor_msgs::ImagePtr rightImgMsg = boost::make_shared<sensor_msgs::Image>();
-    publishImage(rightImgMsg, mat_right, mPubRight, mRightCamInfoMsg, mRightCamOptFrameId, stamp);
+    publishImage(rightImgMsg, mat_right, mPubRight, mRightCamInfoMsg, mRightCamOptFrameId, stamp, "/zed2i/zed_node/right");
   }
 
   // Publish the right image GRAY if someone has subscribed to
@@ -3259,7 +3520,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
   }
 
   // Publish the depth image if someone has subscribed to
-  if (depthSubnumber > 0)
+  if (depthSubnumber + subsOverwride > 0)
   {
     sensor_msgs::ImagePtr depthImgMsg = boost::make_shared<sensor_msgs::Image>();
     publishDepth(depthImgMsg, mat_depth, stamp);
@@ -3272,10 +3533,90 @@ void ZEDWrapperNodelet::pubVideoDepth()
   }
 
   // Publish the confidence map if someone has subscribed to
-  if (confMapSubnumber > 0)
+  if (confMapSubnumber + subsOverwride > 0)
   {
     sensor_msgs::ImagePtr confMapMsg = boost::make_shared<sensor_msgs::Image>();
     sl_tools::imageToROSmsg(confMapMsg, mat_conf, mConfidenceOptFrameId, stamp);
+    
+    if (saveRosbags_){
+
+      sensor_msgs::CompressedImage confMapCompressedImage;
+      confMapCompressedImage.header = confMapMsg->header;
+      confMapCompressedImage.format = sensor_msgs::image_encodings::MONO8;
+
+      cv::Mat conf_mono8_img;
+      // sensor_msgs::Image confMono8Msg;
+      // confMono8Msg.encoding = sensor_msgs::image_encodings::MONO8;
+      depthConversionCallback(confMapMsg, conf_mono8_img);
+      cv_bridge::CvImage img_bridge;
+      img_bridge = cv_bridge::CvImage(confMapCompressedImage.header, sensor_msgs::image_encodings::MONO8, conf_mono8_img);
+      
+      if (!savedSampleConfidence_)
+      {
+        std::vector<int> Savecompression_params = {cv::IMWRITE_JPEG_QUALITY, 95};
+        
+        cv::imwrite(zed_wrapperPath_ + "/data/example_confidence_map.png", img_bridge.image, Savecompression_params);
+        savedSampleConfidence_ = true;
+      }
+      // img_bridge.toImageMsg(confMono8Msg); // from cv_bridge to sensor_msgs::Image
+
+      // At this point it could be published.
+      // cv::Mat conf_mono8_img_compressed;
+      if (compressionType_ == "png")
+      {
+        confMapCompressedImage.format += "; png compressed ";
+        std::vector<int> param = {cv::IMWRITE_PNG_COMPRESSION, 5};
+        cv::imencode(".png", img_bridge.image, confMapCompressedImage.data, param);
+      }
+      else if ((compressionType_ == "jpeg") || (compressionType_ == "jpg"))
+      {
+        // std::vector<uchar> buf;
+        confMapCompressedImage.format += "; jpeg compressed ";
+        std::vector<int> param = {cv::IMWRITE_JPEG_QUALITY, 95};
+        cv::imencode(".jpg", img_bridge.image, confMapCompressedImage.data, param);
+
+        // float cRatio = (float)(img_bridge.image.rows * img_bridge.image.cols * img_bridge.image.elemSize())
+        //     / (float)confMapCompressedImage.data.size();
+        // NODELET_WARN_STREAM("Compressed Image Transport - Codec: jpg, Compression Ratio: 1" << cRatio << " Bytes: " << confMapCompressedImage.data.size());
+
+      }
+      else
+      {
+        NODELET_ERROR("UNDEFINED COMPRESSION TYPE. Please set 'compressionType' parameter to 'png' or 'jpeg'");
+      }
+      {
+        std::lock_guard<std::mutex> lock(mRosBagMutex);
+        outBag_depthAndConfidence.write("/zed2i/zed_node/confidence_mono/confidence_map/compressed", stamp, confMapCompressedImage);
+      }
+
+      // cv::Mat confImg = cv_bridge::toCvCopy(*confMapMsg, sensor_msgs::image_encodings::TYPE_32FC1)->image;
+      // sensor_msgs::Image imageMsgConf = *confMapMsg;
+
+      // if (compressionType_ == "png")
+      // {
+      //   // PNG compression level, 9 == full , 0 == none
+      //   std::vector<int> param = {cv::IMWRITE_PNG_COMPRESSION, 5};
+      //   cv::imencode(".png", confImg, imageMsgConf.data, param);
+      // }
+      // else if ((compressionType_ == "jpeg") || (compressionType_ == "jpg"))
+      // {
+      //   std::vector<int> param = {cv::IMWRITE_JPEG_QUALITY, 95};
+      //   cv::imencode(".jpg", confImg, imageMsgConf.data, param);
+      // }
+      // else
+      // {
+      //   NODELET_ERROR("UNDEFINED COMPRESSION TYPE. Please set 'compressionType' parameter to 'png' or 'jpeg'");
+      // }
+
+      sensor_msgs::CompressedImage::Ptr rvlCompressedImage(new sensor_msgs::CompressedImage());
+      rvlCompressedImage = encodeCompressedDepthImage(*confMapMsg, depthCompressionType_, 15.0, 100.0, 9);
+      {
+
+        std::lock_guard<std::mutex> lock(mRosBagMutex);
+        outBag_depthAndConfidence.write("/zed2i/zed_node/confidence/confidence_map/compressed", stamp, *rvlCompressedImage);
+      }
+    }
+
     mPubConfMap.publish(confMapMsg);
   }
 }
@@ -3436,7 +3777,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
   }
 
   uint32_t tot_sub = imu_SubNumber + imu_RawSubNumber + imu_TempSubNumber + imu_MagSubNumber + pressSubNumber +
-                     tempLeftSubNumber + tempRightSubNumber;
+                     tempLeftSubNumber + tempRightSubNumber + subsOverwride;
 
   if (tot_sub > 0)
   {
@@ -3512,7 +3853,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     sens_data.temperature.get(sl::SensorsData::TemperatureData::SENSOR_LOCATION::ONBOARD_RIGHT, mTempRight);
   }
 
-  if (imu_TempSubNumber > 0 && new_imu_data)
+  if (imu_TempSubNumber + subsOverwride > 0 && new_imu_data)
   {
     lastTs_imu = ts_imu;
 
@@ -3536,6 +3877,11 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     imuTempMsg->variance = 0.0;
 
     sensors_data_published = true;
+    if (saveRosbags_)
+    {
+      std::lock_guard<std::mutex> lock(mRosBagMutex);
+      outBag_sensorData.write("/zed2i/zed_node/temperature/imu", ts_imu, *imuTempMsg);
+    }
     mPubImuTemp.publish(imuTempMsg);
   } /*else {
       NODELET_DEBUG("No new IMU temp.");
@@ -3616,7 +3962,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
       NODELET_DEBUG("No new BAROM. DATA");
   }*/
 
-  if (imu_MagSubNumber > 0)
+  if (imu_MagSubNumber + subsOverwride > 0)
   {
     if (sens_data.magnetometer.is_available && new_mag_data)
     {
@@ -3650,13 +3996,18 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
       magMsg->magnetic_field_covariance[8] = 0.047e-6;
 
       sensors_data_published = true;
+      if (saveRosbags_)
+      {
+        std::lock_guard<std::mutex> lock(mRosBagMutex);
+        outBag_sensorData.write("/zed2i/zed_node/imu/mag", ts_mag, *magMsg);
+      } 
       mPubImuMag.publish(magMsg);
     }
   } /*else {
       NODELET_DEBUG("No new MAG. DATA");
   }*/
 
-  if (imu_SubNumber > 0 && new_imu_data)
+  if (imu_SubNumber + subsOverwride > 0 && new_imu_data)
   {
     lastTs_imu = ts_imu;
 
@@ -3726,6 +4077,11 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     }
 
     sensors_data_published = true;
+    if (saveRosbags_)
+    {
+      std::lock_guard<std::mutex> lock(mRosBagMutex);
+      outBag_sensorData.write("/zed2i/zed_node/imu/data", ts_imu, *imuMsg);
+    }
     mPubImu.publish(imuMsg);
   } /*else {
       NODELET_DEBUG("No new IMU DATA");
@@ -3811,7 +4167,8 @@ void ZEDWrapperNodelet::device_poll_thread_func()
   // Timestamp initialization
   if (mSvoMode)
   {
-    mFrameTimestamp = ros::Time::now();
+    //mFrameTimestamp = ros::Time::now();
+    mFrameTimestamp = sl_tools::slTime2Ros(mZed.getTimestamp(sl::TIME_REFERENCE::CURRENT));
   }
   else
   {
@@ -3936,7 +4293,7 @@ void ZEDWrapperNodelet::device_poll_thread_func()
                     rightRawSubnumber + rgbGraySubnumber + rgbGrayRawSubnumber + leftGraySubnumber +
                     leftGrayRawSubnumber + rightGraySubnumber + rightGrayRawSubnumber + depthSubnumber +
                     disparitySubnumber + cloudSubnumber + poseSubnumber + poseCovSubnumber + odomSubnumber +
-                    confMapSubnumber + pathSubNumber + stereoSubNumber + stereoRawSubNumber + objDetSubnumber) > 0);
+                    confMapSubnumber + pathSubNumber + stereoSubNumber + stereoRawSubNumber + objDetSubnumber + subsOverwride) > 0);
 
     // Run the loop only if there is some subscribers or SVO is active
     if (mGrabActive)
@@ -3947,7 +4304,7 @@ void ZEDWrapperNodelet::device_poll_thread_func()
       mPosTrackingRequired =
           !mDepthDisabled && (mPosTrackingEnabled || mPosTrackingStarted || mMappingEnabled || mObjDetEnabled ||
                               (mComputeDepth & mDepthStabilization) || poseSubnumber > 0 || poseCovSubnumber > 0 ||
-                              odomSubnumber > 0 || pathSubNumber > 0);
+                              odomSubnumber + subsOverwride > 0 || pathSubNumber > 0);
 
       // Start the tracking?
       if (mPosTrackingRequired && !mPosTrackingStarted)
@@ -3978,7 +4335,7 @@ void ZEDWrapperNodelet::device_poll_thread_func()
       mComputeDepth = !mDepthDisabled &&
                       (mPosTrackingRequired ||
                        ((depthSubnumber + disparitySubnumber + cloudSubnumber + fusedCloudSubnumber + poseSubnumber +
-                         poseCovSubnumber + odomSubnumber + confMapSubnumber + objDetSubnumber) > 0));
+                         poseCovSubnumber + odomSubnumber + confMapSubnumber + objDetSubnumber + subsOverwride) > 0));
 
       // ----> Depth runtime parameters
       if (mComputeDepth)
@@ -4004,8 +4361,43 @@ void ZEDWrapperNodelet::device_poll_thread_func()
         // Detect if a error occurred (for example: the zed have been disconnected) and re-initialize the ZED
 
         NODELET_INFO_STREAM_THROTTLE(1.0, "Camera grab error: " << sl::toString(mGrabStatus).c_str());
+        // NODELET_ERROR_STREAM("mSvoMode: " << mSvoMode << " mGrabStatus: " << mGrabStatus << " saveRosbags_: " << saveRosbags_);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+        if (saveRosbags_){
+          if (mSvoMode && mGrabStatus == sl::ERROR_CODE::END_OF_SVOFILE_REACHED)
+          {
+
+            // NODELET_WARN("Custom END_OF_SVOFILE_REACHED");
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+            {
+            std::lock_guard<std::mutex> lock(mRosBagMutex);
+            outBag_sensorData.close();
+            outBag_images.close();
+            outBag_depthAndConfidence.close();
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+            // this->ZEDWrapperNodelet::~ZEDWrapperNodelet();
+
+            ros::shutdown();
+            exit(EXIT_SUCCESS);
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            raise(SIGINT);
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            raise(SIGABRT);
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            exit(EXIT_SUCCESS);
+
+
+          }
+        }
+
         if (mGrabStatus != sl::ERROR_CODE::CAMERA_REBOOTING)
         {
           std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -4013,9 +4405,27 @@ void ZEDWrapperNodelet::device_poll_thread_func()
         }
         else if (mSvoMode && mGrabStatus == sl::ERROR_CODE::END_OF_SVOFILE_REACHED)
         {
-          NODELET_WARN("SVO reached the end. The node will be stopped.");
+          NODELET_ERROR("mSvoMode && mGrabStatus == sl::ERROR_CODE::END_OF_SVOFILE_REACHED AFTER");
+          if (saveRosbags_)
+          {
+            NODELET_WARN("SVO reached the end. The node will be stopped.");
+            std::lock_guard<std::mutex> lock(mRosBagMutex);
+            outBag_sensorData.close();
+            outBag_images.close();
+            outBag_depthAndConfidence.close();
+          }
+
           mZed.close();
+
+          if (saveRosbags_)
+          {
+            ros::shutdown();
+            raise(SIGINT);
+            raise(SIGABRT);
+          }
+
           exit(EXIT_SUCCESS);
+
         }
         else if (!mRemoteStreamAddr.empty())
         {
@@ -4087,7 +4497,8 @@ void ZEDWrapperNodelet::device_poll_thread_func()
       // ----> Timestamp
       if (mSvoMode)
       {
-        mFrameTimestamp = ros::Time::now();
+        // mFrameTimestamp = ros::Time::now();
+        mFrameTimestamp = sl_tools::slTime2Ros(mZed.getTimestamp(sl::TIME_REFERENCE::IMAGE));
       }
       else
       {
@@ -4516,11 +4927,26 @@ void ZEDWrapperNodelet::callback_updateDiagnostic(diagnostic_updater::Diagnostic
 
       if (mSvoMode)
       {
+        
         int frame = mZed.getSVOPosition();
         int totFrames = mZed.getSVONumberOfFrames();
         double svo_perc = 100. * (static_cast<double>(frame) / totFrames);
 
         stat.addf("Playing SVO", "Frame: %d/%d (%.1f%%)", frame, totFrames, svo_perc);
+        printf("Playing SVO: Frame %d/%d (%.1f%%)\n", frame, totFrames, svo_perc);
+
+        // if (saveRosbags_)
+        // {
+        //   if (frame >= totFrames)
+        //   {
+        //     NODELET_WARN_STREAM("SVO file successfully finished replaying and saving. Closing the node (after 2s sleep).");
+        //     std::this_thread::sleep_for(std::chrono::seconds(2));
+        //     ros::shutdown();
+        //     raise(SIGINT);
+        //     raise(SIGABRT);
+        //     exit(-1);
+        //   }        
+        // }
       }
 
       if (mComputeDepth)
@@ -5695,6 +6121,34 @@ void ZEDWrapperNodelet::publishTFs(ros::Time t)
     {
       publishPoseTF(t);  // publish the odometry Frame in map frame
     }
+
+    // if (saveRosbags_)
+    // {
+
+    //   // ----> Avoid duplicated TF publishing
+    //   // static ros::Time last_stamp;
+
+    //     if (t != last_stamp2)
+    //     {
+    //       if (mStaticImuFramePublished)
+    //         {  
+    //           mStaticImuTransformStamped.header.stamp = t;
+    //           // collectiontfMessage_.transforms.push_back(mStaticImuTransformStamped);
+    //         }
+    //     }
+        
+    //     last_stamp2 = t;
+
+
+    //   // if (collectiontfMessage_.transforms.size() > 0)
+    //   // {
+    //   //   // std::lock_guard<std::mutex> lock(mRosBagMutex); 
+    //   //   // outBag_sensorData.write("/tf", collectiontfMessage_.transforms[0].header.stamp, collectiontfMessage_);
+    //   // }else{
+    //   //   NODELET_WARN("No TFs to write in the bag file");
+    //   // }
+
+    // }
   }
 }
 
@@ -5730,7 +6184,7 @@ void ZEDWrapperNodelet::publishOdomTF(ros::Time t)
   geometry_msgs::TransformStamped transformStamped;
   transformStamped.header.stamp = t;
 
-  // NODELET_DEBUG_STREAM(get_logger(), "Odom TS: " << transformStamped.header.stamp);
+  // NODELET_WARN_STREAM("mBaseFrameId: " << mBaseFrameId);
 
   transformStamped.header.frame_id = mOdomFrameId;
   transformStamped.child_frame_id = mBaseFrameId;
@@ -5747,8 +6201,29 @@ void ZEDWrapperNodelet::publishOdomTF(ros::Time t)
   transformStamped.transform.rotation.z = quat.z();
   transformStamped.transform.rotation.w = quat.w();
 
+
+  tf::Transform transform;
+  tf::transformMsgToTF(transformStamped.transform, transform);
+  geometry_msgs::Transform inverted_transform_msg;
+  tf::transformTFToMsg(transform.inverse(), inverted_transform_msg);
+
+  transformStamped.transform = inverted_transform_msg;
+  transformStamped.header.frame_id = "zed2i_base_link";
+  transformStamped.child_frame_id = mOdomFrameId;
+
+  tf2_msgs::TFMessage myTf;
+  myTf.transforms.push_back(transformStamped);
+
+  if (saveRosbags_){
+    std::lock_guard<std::mutex> lock(mRosBagMutex); 
+    outBag_sensorData.write("/tf", t, myTf);
+  }
+
   // Publish transformation
-  mTfBroadcaster.sendTransform(transformStamped);
+  if (!saveRosbags_)
+  {
+    mTfBroadcaster.sendTransform(transformStamped);
+  }
 }
 
 void ZEDWrapperNodelet::publishPoseTF(ros::Time t)
@@ -5795,8 +6270,278 @@ void ZEDWrapperNodelet::publishPoseTF(ros::Time t)
   transformStamped.transform.rotation.z = quat.z();
   transformStamped.transform.rotation.w = quat.w();
 
+  // collectiontfMessage_.transforms.push_back(transformStamped);
   // Publish transformation
-  mTfBroadcaster.sendTransform(transformStamped);
+  if (!saveRosbags_)
+  {
+    mTfBroadcaster.sendTransform(transformStamped);
+  }
+}
+
+
+ sensor_msgs::CompressedImage::Ptr ZEDWrapperNodelet::encodeCompressedDepthImage(
+     const sensor_msgs::Image& message,
+     const std::string& compression_format,
+     double depth_max, double depth_quantization, int png_level)
+ {
+  
+   // Compressed image message
+   sensor_msgs::CompressedImage::Ptr compressed(new sensor_msgs::CompressedImage());
+   compressed->header = message.header;
+   compressed->format = message.encoding;
+  
+   // Compression settings
+   std::vector<int> params;
+  
+   // Bit depth of image encoding
+   int bitDepth = sensor_msgs::image_encodings::bitDepth(message.encoding);
+   int numChannels = sensor_msgs::image_encodings::numChannels(message.encoding);
+
+   // print depth and channels
+    // NODELET_WARN_STREAM("Depth: " << bitDepth << " Channels: " << numChannels);
+  
+   // Image compression configuration
+   compressed_depth_image_transport::ConfigHeader compressionConfig {};
+   compressionConfig.format = compressed_depth_image_transport::INV_DEPTH;
+  
+   // Compressed image data
+   std::vector<uint8_t> compressedImage;
+  
+   // Update ros message format header
+   compressed->format += "; compressedDepth " + compression_format;
+  
+   // Check input format
+   params.reserve(2);
+   params.emplace_back(cv::IMWRITE_PNG_COMPRESSION);
+   params.emplace_back(png_level);
+  
+   if ((bitDepth == 32) && (numChannels == 1))
+   {
+     float depthZ0 = depth_quantization;
+     float depthMax = depth_max;
+  
+     // OpenCV-ROS bridge
+     cv_bridge::CvImagePtr cv_ptr;
+     try
+     {
+       cv_ptr = cv_bridge::toCvCopy(message);
+     }
+     catch (cv_bridge::Exception& e)
+     {
+      //  ROS_ERROR("%s", e.what());
+       return sensor_msgs::CompressedImage::Ptr();
+     }
+  
+     const cv::Mat& depthImg = cv_ptr->image;
+     size_t rows = depthImg.rows;
+     size_t cols = depthImg.cols;
+  
+     // NODELET_WARN_STREAM("rows: " << rows << " cols: " << cols);
+
+     if ((rows > 0) && (cols > 0))
+     {
+      double minVal = 100000;
+      double maxVal = -1;
+
+      cv::minMaxLoc(depthImg, &minVal, &maxVal);
+      // std::cout << "max val: " << maxVal << std::endl;
+
+       // Allocate matrix for inverse depth (disparity) coding
+       cv::Mat invDepthImg(rows, cols, CV_16UC1);
+  
+       // Inverse depth quantization parameters
+       float depthQuantA = depthZ0 * (depthZ0 + 1.0f);
+       float depthQuantB = 1.0f - depthQuantA / depthMax;
+  
+       // Add coding parameters to header
+       compressionConfig.depthParam[0] = depthQuantA;
+       compressionConfig.depthParam[1] = depthQuantB;
+
+       // Matrix iterators
+       cv::MatConstIterator_<float> itDepthImg = depthImg.begin<float>(),
+                                itDepthImg_end = depthImg.end<float>();
+       cv::MatIterator_<uint16_t> itInvDepthImg = invDepthImg.begin<uint16_t>(),
+                                    itInvDepthImg_end = invDepthImg.end<uint16_t>();
+  
+       // Quantization
+       for (; (itDepthImg != itDepthImg_end) && (itInvDepthImg != itInvDepthImg_end); ++itDepthImg, ++itInvDepthImg)
+       {
+         // check for NaN & max depth
+         if (*itDepthImg < depthMax)
+         {
+           *itInvDepthImg = depthQuantA / *itDepthImg + depthQuantB;
+         }
+         else
+         {
+           *itInvDepthImg = 0;
+         }
+       }
+
+       // Compress quantized disparity image
+       if (compression_format == "png") {
+         try
+         {
+           if (cv::imencode(".png", invDepthImg, compressedImage, params))
+           {
+            //  float cRatio = (float)(cv_ptr->image.rows * cv_ptr->image.cols * cv_ptr->image.elemSize())
+            //      / (float)compressedImage.size();
+            //  ROS_DEBUG("Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio, compressedImage.size());
+           }
+           else
+           {
+             ROS_ERROR("cv::imencode (png) failed on input image");
+             return sensor_msgs::CompressedImage::Ptr();
+           }
+         }
+         catch (cv::Exception& e)
+         {
+          //  ROS_ERROR("%s", e.msg.c_str());
+           return sensor_msgs::CompressedImage::Ptr();
+         }
+       } else if (compression_format == "rvl") {
+         int numPixels = invDepthImg.rows * invDepthImg.cols;
+         // In the worst case, RVL compression results in ~1.5x larger data.
+         compressedImage.resize(3 * numPixels + 12);
+         uint32_t cols = invDepthImg.cols;
+         uint32_t rows = invDepthImg.rows;
+         memcpy(&compressedImage[0], &cols, 4);
+         memcpy(&compressedImage[4], &rows, 4);
+         
+         int compressedSize = myCompressRVL(invDepthImg.ptr<uint16_t>(), &compressedImage[8], numPixels);
+         compressedImage.resize(8 + compressedSize);
+       } else if ((compression_format == "jpeg") || (compression_format == "jpg")) {
+
+        std::vector<int> jpgparam = {cv::IMWRITE_JPEG_QUALITY, 95};
+        cv::imencode(".jpg", invDepthImg, compressedImage, jpgparam);
+
+       }
+     }
+   }
+   // Raw depth map compression
+   else if ((bitDepth == 16) && (numChannels == 1))
+   {
+     // OpenCV-ROS bridge
+     cv_bridge::CvImagePtr cv_ptr;
+     try
+     {
+       cv_ptr = cv_bridge::toCvCopy(message);
+     }
+     catch (cv::Exception& e)
+     {
+      //  ROS_ERROR("%s", e.msg.c_str());
+       return sensor_msgs::CompressedImage::Ptr();
+     }
+  
+     const cv::Mat& depthImg = cv_ptr->image;
+     size_t rows = depthImg.rows;
+     size_t cols = depthImg.cols;
+  
+     if ((rows > 0) && (cols > 0))
+     {
+       unsigned short depthMaxUShort = static_cast<unsigned short>(depth_max * 1000.0f);
+  
+       // Matrix iterators
+       cv::MatIterator_<unsigned short> itDepthImg = cv_ptr->image.begin<unsigned short>(),
+                                     itDepthImg_end = cv_ptr->image.end<unsigned short>();
+  
+       // Max depth filter
+       for (; itDepthImg != itDepthImg_end; ++itDepthImg)
+       {
+         if (*itDepthImg > depthMaxUShort)
+           *itDepthImg = 0;
+       }
+  
+       // Compress raw depth image
+       if (compression_format == "png") {
+         if (cv::imencode(".png", cv_ptr->image, compressedImage, params))
+         {
+           float cRatio = (float)(cv_ptr->image.rows * cv_ptr->image.cols * cv_ptr->image.elemSize())
+               / (float)compressedImage.size();
+          //  ROS_DEBUG("Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio, compressedImage.size());
+         }
+         else
+         {
+          //  ROS_ERROR("cv::imencode (png) failed on input image");
+           return sensor_msgs::CompressedImage::Ptr();
+         }
+       } else if (compression_format == "rvl") {
+         int numPixels = cv_ptr->image.rows * cv_ptr->image.cols;
+         // In the worst case, RVL compression results in ~1.5x larger data.
+         compressedImage.resize(3 * numPixels + 12);
+         uint32_t cols = cv_ptr->image.cols;
+         uint32_t rows = cv_ptr->image.rows;
+         memcpy(&compressedImage[0], &cols, 4);
+         memcpy(&compressedImage[4], &rows, 4);
+         compressed_depth_image_transport::RvlCodec rvl;
+         int compressedSize = myCompressRVL(cv_ptr->image.ptr<unsigned short>(), &compressedImage[8], numPixels);
+         compressedImage.resize(8 + compressedSize);
+       }
+     }
+   }
+   else
+   {
+    //  ROS_ERROR("Compressed Depth Image Transport - Compression requires single-channel 32bit-floating point or 16bit raw depth images (input format is: %s).", message.encoding.c_str());
+     return sensor_msgs::CompressedImage::Ptr();
+   }
+  
+   if (compressedImage.size() > 0)
+   {
+     // Add configuration to binary output
+     compressed->data.resize(sizeof(compressed_depth_image_transport::ConfigHeader));
+     memcpy(&compressed->data[0], &compressionConfig, sizeof(compressed_depth_image_transport::ConfigHeader));
+    
+     // Add compressed binary data to messages
+     compressed->data.insert(compressed->data.end(), compressedImage.begin(), compressedImage.end());
+  
+     return compressed;
+   }
+  
+   return sensor_msgs::CompressedImage::Ptr();
+ }
+
+void ZEDWrapperNodelet::myEncodeVLE(int value)
+{
+  do {
+    int nibble = value & 0x7;  // lower 3 bits
+    if (value >>= 3) {nibble |= 0x8;}  // more to come
+    word_ <<= 4;
+    word_ |= nibble;
+    if (++nibblesWritten_ == 8) {  // output word
+      *pBuffer_++ = word_;
+      nibblesWritten_ = 0;
+      word_ = 0;
+    }
+  } while (value);
+}
+
+int ZEDWrapperNodelet::myCompressRVL(
+  const uint16_t * input, unsigned char * output,
+  int numPixels)
+{
+  buffer_ = pBuffer_ = reinterpret_cast<int *>(output);
+  nibblesWritten_ = 0;
+  const uint16_t * end = input + numPixels;
+  uint16_t previous = 0;
+  while (input != end) {
+    int zeros = 0, nonzeros = 0;
+    for (; (input != end) && !*input; input++, zeros++) {
+    }
+    myEncodeVLE(zeros);  // number of zeros
+    for (const uint16_t * p = input; (p != end) && *p++; nonzeros++) {
+    }
+    myEncodeVLE(nonzeros);  // number of nonzeros
+    for (int i = 0; i < nonzeros; i++) {
+      uint16_t current = *input++;
+      int delta = current - previous;
+      int positive = (delta << 1) ^ (delta >> 31);
+      myEncodeVLE(positive);  // nonzero value
+      previous = current;
+    }
+  }
+  if (nibblesWritten_) {  // last few values
+    *pBuffer_++ = word_ << 4 * (8 - nibblesWritten_);
+  }
+  return static_cast<int>((unsigned char *)pBuffer_ - (unsigned char *)buffer_);  // num bytes
 }
 
 }  // namespace zed_nodelets

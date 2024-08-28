@@ -1,0 +1,15 @@
+general:
+    base_frame:                 'zed_base_link'                 # this will be overridden by the launch file.
+    verbose:                    false                           # Enable info message by the ZED SDK
+    svo_realtime:               false                           # keep it false to run it faster than realtime.
+    pub_frame_rate:             15.0
+    self_calib:                 false                           # if this is enabled left camera -> IMU calibration will be done
+    save_grandtour_rosbags:     true                            # if enabled grandtour bags will be saved
+    saved_image_compression_type: jpg                           # Compression type png or jpg. Not used if `save_grandtour_rosbags` is false
+    saved_depth_compression_type: jpg                           # Compression type png, rvl or jpg. Not used if `save_grandtour_rosbags` is false
+pos_tracking:
+    pos_tracking_enabled:       true
+    area_memory:                false
+depth:
+    depth_mode:                 'ULTRA'                         # 'NONE', 'PERFORMANCE', 'QUALITY', 'ULTRA', 'NEURAL', `NEURAL_PLUS`
+    openni_depth_mode:          false                           # if enabled, uses UINT16 depth data
