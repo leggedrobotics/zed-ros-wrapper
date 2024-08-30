@@ -131,9 +131,24 @@ void ZEDWrapperNodelet::onInit()
     }
 
     zed_wrapperPath_ = ros::package::getPath("zed_wrapper");
-    std::string outBagPathSensorData_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_sensorData", ".bag");
-    std::string outBagPathDepth_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_depth", ".bag");
-    std::string outBagPathImages_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_images", ".bag");
+
+    // std::string outBagPathSensorData_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_sensorData", ".bag");
+    // std::string outBagPathDepth_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_depth", ".bag");
+    // std::string outBagPathImages_ = ZEDWrapperNodelet::buildUpLogFilename("zed2iRosbag_images", ".bag");
+
+    std::string outBagPathSensorData_ = mSvoFilepath;
+    std::string outBagPathDepth_ = mSvoFilepath;
+    std::string outBagPathImages_ = mSvoFilepath;
+
+    outBagPathSensorData_.erase(outBagPathSensorData_.end() - 5, outBagPathSensorData_.end());
+    outBagPathSensorData_ += "_sensorData.bag";
+
+    outBagPathDepth_.erase(outBagPathDepth_.end() - 5, outBagPathDepth_.end());
+    outBagPathDepth_ += "_depth.bag";
+
+    outBagPathImages_.erase(outBagPathImages_.end() - 5, outBagPathImages_.end());
+    outBagPathImages_ += "_images.bag";
+
     std::remove(outBagPathSensorData_.c_str());
     std::remove(outBagPathDepth_.c_str());
     std::remove(outBagPathImages_.c_str());
@@ -1347,7 +1362,7 @@ void ZEDWrapperNodelet::readParameters()
   NODELET_WARN_STREAM("Depth Image Compression Type: " << depthCompressionType_);
   NODELET_WARN_STREAM("RGB Image Compression Type: " << compressionType_);
   // mBaseFrameId = "zed2i_base_link";
-  NODELET_WARN_STREAM("BASE FRAME IS OVERWRITTEN TO: " << mBaseFrameId);
+  // NODELET_WARN_STREAM("BASE FRAME IS OVERWRITTEN TO: " << mBaseFrameId);
 
   // Convert from string to bool
   if (saveRosbagsString_ == "false")
