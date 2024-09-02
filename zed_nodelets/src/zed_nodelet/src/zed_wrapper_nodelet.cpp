@@ -139,6 +139,7 @@ void ZEDWrapperNodelet::onInit()
     std::string outBagPathSensorData_ = mSvoFilepath;
     std::string outBagPathDepth_ = mSvoFilepath;
     std::string outBagPathImages_ = mSvoFilepath;
+    std::string outBagPathTf_ = mSvoFilepath;
 
     outBagPathSensorData_.erase(outBagPathSensorData_.end() - 5, outBagPathSensorData_.end());
     outBagPathSensorData_ += "_sensorData.bag";
@@ -149,10 +150,15 @@ void ZEDWrapperNodelet::onInit()
     outBagPathImages_.erase(outBagPathImages_.end() - 5, outBagPathImages_.end());
     outBagPathImages_ += "_images.bag";
 
+    outBagPathTf_.erase(outBagPathTf_.end() - 5, outBagPathTf_.end());
+    outBagPathTf_ += "_tf.bag";
+
+    std::remove(outBagPathTf_.c_str());
     std::remove(outBagPathSensorData_.c_str());
     std::remove(outBagPathDepth_.c_str());
     std::remove(outBagPathImages_.c_str());
     outBag_sensorData.open(outBagPathSensorData_, rosbag::bagmode::Write);
+    outBag_tf.open(outBagPathTf_, rosbag::bagmode::Write);
     outBag_depthAndConfidence.open(outBagPathDepth_, rosbag::bagmode::Write);
     outBag_images.open(outBagPathImages_, rosbag::bagmode::Write);
   }else{
@@ -2398,7 +2404,7 @@ void ZEDWrapperNodelet::publishOdom(tf2::Transform odom2baseTransf, sl::Pose& sl
     if (saveRosbags_)
     {
       std::lock_guard<std::mutex> lock(mRosBagMutex);
-      outBag_sensorData.write("/zed2i/zed_node/odom", t, *odomMsg);
+      outBag_sensorData.write("/gt_box/zed2i/zed_node/odom", t, *odomMsg);
     }
     mPubOdom.publish(odomMsg);
   }
@@ -2559,8 +2565,8 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
       }
       {
         std::lock_guard<std::mutex> lock(mRosBagMutex);
-        outBag_images.write( saveName + "/image_rect_color/compressed", t, compressedImage);
-        outBag_images.write( saveName + "/camera_info", t, *camInfoMsg);
+        outBag_images.write( "/gt_box" + saveName + "/image_rect_color/compressed", t, compressedImage);
+        outBag_images.write( "/gt_box" + saveName + "/camera_info", t, *camInfoMsg);
       }
     }
   }
@@ -2658,7 +2664,7 @@ void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat de
       }
       {
         std::lock_guard<std::mutex> lock(mRosBagMutex);
-        outBag_depthAndConfidence.write("/zed2i/zed_node/depth_mono/depth_registered/compressed", t, depthMapCompressedImage);
+        outBag_depthAndConfidence.write("/gt_box/zed2i/zed_node/depth_mono/depth_registered/compressed", t, depthMapCompressedImage);
       }
       // outBag_depthAndConfidence.write("/zed2i/zed_node/depth_mono/camera_info", t, *mDepthCamInfoMsg);
 
@@ -2707,8 +2713,8 @@ void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat de
 
       {
         std::lock_guard<std::mutex> lock(mRosBagMutex);
-        outBag_depthAndConfidence.write("/zed2i/zed_node/depth/depth_registered/compressed", t, *rvlCompressedImage);
-        outBag_depthAndConfidence.write("/zed2i/zed_node/depth/camera_info", t, *mDepthCamInfoMsg);
+        outBag_depthAndConfidence.write("/gt_box/zed2i/zed_node/depth/depth_registered/compressed", t, *rvlCompressedImage);
+        outBag_depthAndConfidence.write("/gt_box/zed2i/zed_node/depth/camera_info", t, *mDepthCamInfoMsg);
       }
     }
 
@@ -2825,7 +2831,7 @@ void ZEDWrapperNodelet::publishPointCloud()
     sensor_msgs::PointCloud2Modifier modifier(*pointcloudMsg);
     modifier.setPointCloud2Fields(4, "x", 1, sensor_msgs::PointField::FLOAT32, "y", 1, sensor_msgs::PointField::FLOAT32,
                                   "z", 1, sensor_msgs::PointField::FLOAT32, "rgb", 1, sensor_msgs::PointField::FLOAT32);
-    // outBag.write("/zed2i/zed_node/point_cloud/cloud_registered", mPointCloudTime, *pointcloudMsg);
+    outBag_depthAndConfidence.write("/gt_box/zed2i/zed_node/point_cloud/cloud_registered", mPointCloudTime, *pointcloudMsg);
   }
 
   // Data copy
@@ -3601,7 +3607,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
       }
       {
         std::lock_guard<std::mutex> lock(mRosBagMutex);
-        outBag_depthAndConfidence.write("/zed2i/zed_node/confidence_mono/confidence_map/compressed", stamp, confMapCompressedImage);
+        outBag_depthAndConfidence.write("/gt_box/zed2i/zed_node/confidence_mono/confidence_map/compressed", stamp, confMapCompressedImage);
       }
 
       // cv::Mat confImg = cv_bridge::toCvCopy(*confMapMsg, sensor_msgs::image_encodings::TYPE_32FC1)->image;
@@ -3628,7 +3634,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
       {
 
         std::lock_guard<std::mutex> lock(mRosBagMutex);
-        outBag_depthAndConfidence.write("/zed2i/zed_node/confidence/confidence_map/compressed", stamp, *rvlCompressedImage);
+        outBag_depthAndConfidence.write("/gt_box/zed2i/zed_node/confidence/confidence_map/compressed", stamp, *rvlCompressedImage);
       }
     }
 
@@ -3895,7 +3901,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     if (saveRosbags_)
     {
       std::lock_guard<std::mutex> lock(mRosBagMutex);
-      outBag_sensorData.write("/zed2i/zed_node/temperature/imu", ts_imu, *imuTempMsg);
+      outBag_sensorData.write("/gt_box/zed2i/zed_node/temperature/imu", ts_imu, *imuTempMsg);
     }
     mPubImuTemp.publish(imuTempMsg);
   } /*else {
@@ -4014,7 +4020,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
       if (saveRosbags_)
       {
         std::lock_guard<std::mutex> lock(mRosBagMutex);
-        outBag_sensorData.write("/zed2i/zed_node/imu/mag", ts_mag, *magMsg);
+        outBag_sensorData.write("/gt_box/zed2i/zed_node/imu/mag", ts_mag, *magMsg);
       } 
       mPubImuMag.publish(magMsg);
     }
@@ -4095,7 +4101,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     if (saveRosbags_)
     {
       std::lock_guard<std::mutex> lock(mRosBagMutex);
-      outBag_sensorData.write("/zed2i/zed_node/imu/data", ts_imu, *imuMsg);
+      outBag_sensorData.write("/gt_box/zed2i/zed_node/imu/data", ts_imu, *imuMsg);
     }
     mPubImu.publish(imuMsg);
   } /*else {
@@ -4393,6 +4399,7 @@ void ZEDWrapperNodelet::device_poll_thread_func()
             outBag_sensorData.close();
             outBag_images.close();
             outBag_depthAndConfidence.close();
+            outBag_tf.close();
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -6231,7 +6238,7 @@ void ZEDWrapperNodelet::publishOdomTF(ros::Time t)
 
   if (saveRosbags_){
     std::lock_guard<std::mutex> lock(mRosBagMutex); 
-    outBag_sensorData.write("/tf", t, myTf);
+    outBag_tf.write("/tf", t, myTf);
   }
 
   // Publish transformation
