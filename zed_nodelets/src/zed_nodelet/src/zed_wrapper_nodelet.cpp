@@ -157,10 +157,18 @@ void ZEDWrapperNodelet::onInit()
     std::remove(outBagPathSensorData_.c_str());
     std::remove(outBagPathDepth_.c_str());
     std::remove(outBagPathImages_.c_str());
+
     outBag_proprioceptive.open(outBagPathSensorData_, rosbag::bagmode::Write);
+    outBag_proprioceptive.setCompression(rosbag::compression::LZ4);
+
     outBag_tf.open(outBagPathTf_, rosbag::bagmode::Write);
+    outBag_tf.setCompression(rosbag::compression::LZ4);
+
     outBag_depthAndConfidence.open(outBagPathDepth_, rosbag::bagmode::Write);
+    outBag_depthAndConfidence.setCompression(rosbag::compression::LZ4);
+
     outBag_images.open(outBagPathImages_, rosbag::bagmode::Write);
+    outBag_images.setCompression(rosbag::compression::LZ4);
   }else{
     NODELET_ERROR("Replaying but Not saving rosbags");
     subsOverwride = 0;
