@@ -503,7 +503,7 @@ protected:
 
   // Output bags
   rosbag::Bag outBag_images;
-  rosbag::Bag outBag_sensorData;
+  rosbag::Bag outBag_proprioceptive;
   rosbag::Bag outBag_tf;
   rosbag::Bag outBag_depthAndConfidence;
 

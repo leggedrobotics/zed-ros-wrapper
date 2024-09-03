@@ -142,7 +142,7 @@ void ZEDWrapperNodelet::onInit()
     std::string outBagPathTf_ = mSvoFilepath;
 
     outBagPathSensorData_.erase(outBagPathSensorData_.end() - 5, outBagPathSensorData_.end());
-    outBagPathSensorData_ += "_sensorData.bag";
+    outBagPathSensorData_ += "_proprioceptive.bag";
 
     outBagPathDepth_.erase(outBagPathDepth_.end() - 5, outBagPathDepth_.end());
     outBagPathDepth_ += "_depth.bag";
@@ -157,7 +157,7 @@ void ZEDWrapperNodelet::onInit()
     std::remove(outBagPathSensorData_.c_str());
     std::remove(outBagPathDepth_.c_str());
     std::remove(outBagPathImages_.c_str());
-    outBag_sensorData.open(outBagPathSensorData_, rosbag::bagmode::Write);
+    outBag_proprioceptive.open(outBagPathSensorData_, rosbag::bagmode::Write);
     outBag_tf.open(outBagPathTf_, rosbag::bagmode::Write);
     outBag_depthAndConfidence.open(outBagPathDepth_, rosbag::bagmode::Write);
     outBag_images.open(outBagPathImages_, rosbag::bagmode::Write);
@@ -2404,7 +2404,7 @@ void ZEDWrapperNodelet::publishOdom(tf2::Transform odom2baseTransf, sl::Pose& sl
     if (saveRosbags_)
     {
       std::lock_guard<std::mutex> lock(mRosBagMutex);
-      outBag_sensorData.write("/gt_box/zed2i/zed_node/odom", t, *odomMsg);
+      outBag_proprioceptive.write("/gt_box/zed2i/zed_node/odom", t, *odomMsg);
     }
     mPubOdom.publish(odomMsg);
   }
@@ -3901,7 +3901,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     if (saveRosbags_)
     {
       std::lock_guard<std::mutex> lock(mRosBagMutex);
-      outBag_sensorData.write("/gt_box/zed2i/zed_node/temperature/imu", ts_imu, *imuTempMsg);
+      outBag_proprioceptive.write("/gt_box/zed2i/zed_node/temperature/imu", ts_imu, *imuTempMsg);
     }
     mPubImuTemp.publish(imuTempMsg);
   } /*else {
@@ -4020,7 +4020,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
       if (saveRosbags_)
       {
         std::lock_guard<std::mutex> lock(mRosBagMutex);
-        outBag_sensorData.write("/gt_box/zed2i/zed_node/imu/mag", ts_mag, *magMsg);
+        outBag_proprioceptive.write("/gt_box/zed2i/zed_node/imu/mag", ts_mag, *magMsg);
       } 
       mPubImuMag.publish(magMsg);
     }
@@ -4101,7 +4101,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     if (saveRosbags_)
     {
       std::lock_guard<std::mutex> lock(mRosBagMutex);
-      outBag_sensorData.write("/gt_box/zed2i/zed_node/imu/data", ts_imu, *imuMsg);
+      outBag_proprioceptive.write("/gt_box/zed2i/zed_node/imu/data", ts_imu, *imuMsg);
     }
     mPubImu.publish(imuMsg);
   } /*else {
@@ -4396,7 +4396,7 @@ void ZEDWrapperNodelet::device_poll_thread_func()
 
             {
             std::lock_guard<std::mutex> lock(mRosBagMutex);
-            outBag_sensorData.close();
+            outBag_proprioceptive.close();
             outBag_images.close();
             outBag_depthAndConfidence.close();
             outBag_tf.close();
@@ -4432,7 +4432,7 @@ void ZEDWrapperNodelet::device_poll_thread_func()
           {
             NODELET_WARN("SVO reached the end. The node will be stopped.");
             std::lock_guard<std::mutex> lock(mRosBagMutex);
-            outBag_sensorData.close();
+            outBag_proprioceptive.close();
             outBag_images.close();
             outBag_depthAndConfidence.close();
           }
@@ -6165,7 +6165,7 @@ void ZEDWrapperNodelet::publishTFs(ros::Time t)
     //   // if (collectiontfMessage_.transforms.size() > 0)
     //   // {
     //   //   // std::lock_guard<std::mutex> lock(mRosBagMutex); 
-    //   //   // outBag_sensorData.write("/tf", collectiontfMessage_.transforms[0].header.stamp, collectiontfMessage_);
+    //   //   // outBag_proprioceptive.write("/tf", collectiontfMessage_.transforms[0].header.stamp, collectiontfMessage_);
     //   // }else{
     //   //   NODELET_WARN("No TFs to write in the bag file");
     //   // }
