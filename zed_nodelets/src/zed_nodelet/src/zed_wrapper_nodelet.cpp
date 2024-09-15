@@ -40,10 +40,8 @@
 
 namespace zed_nodelets
 {
-#ifndef DEG2RAD
 #define DEG2RAD 0.017453293
 #define RAD2DEG 57.295777937
-#endif
 
 #define MAG_FREQ 50.
 #define BARO_FREQ 25.
@@ -54,7 +52,7 @@ ZEDWrapperNodelet::ZEDWrapperNodelet() : Nodelet()
 
 ZEDWrapperNodelet::~ZEDWrapperNodelet()
 {
-  std::cerr << "Destroying: " << getName() << std::endl;
+  std::cerr << "Self Terminating the Zed Node. To be destroyed node: " << getName() << std::endl;
 
   if (mDevicePollThread.joinable())
   {
@@ -2381,6 +2379,11 @@ void ZEDWrapperNodelet::publishOdom(tf2::Transform odom2baseTransf, sl::Pose& sl
     nav_msgs::OdometryPtr odomMsg = boost::make_shared<nav_msgs::Odometry>();
 
     odomMsg->header.stamp = t;
+
+    static int odom_seq = 0;
+    odomMsg->header.seq = odom_seq;
+    odom_seq++;
+
     odomMsg->header.frame_id = mOdomFrameId;  // odometry frame
     odomMsg->child_frame_id = mBaseFrameId;   // base frame
 
@@ -2523,10 +2526,14 @@ void ZEDWrapperNodelet::publishStaticImuFrame()
 
 void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat img,
                                      image_transport::CameraPublisher& pubImg, sensor_msgs::CameraInfoPtr camInfoMsg,
-                                     std::string imgFrameId, ros::Time t, std::string saveName)
+                                     std::string imgFrameId, ros::Time t, std::string saveName, int seqNum)
 {
   camInfoMsg->header.stamp = t;
   imgMsgPtr->header.stamp = t;
+
+  camInfoMsg->header.seq = seqNum;
+  imgMsgPtr->header.seq = seqNum;
+
   sl_tools::imageToROSmsg(imgMsgPtr, img, imgFrameId, t);
 
   if (saveRosbags_)
@@ -2618,10 +2625,13 @@ void ZEDWrapperNodelet::depthToCV8UC1(const cv::Mat& float_img, cv::Mat& mono8_i
   //cv::line( mono8_img, cv::Point2i(10,10),cv::Point2i(200,100), cv::Scalar(255), 3, 8);
 }
 
-void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat depth, ros::Time t)
+void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat depth, ros::Time t, int seqNum)
 {
   mDepthCamInfoMsg->header.stamp = t;
   imgMsgPtr->header.stamp = t;
+
+  imgMsgPtr->header.seq = seqNum;
+  mDepthCamInfoMsg->header.seq = seqNum;
 
   // NODELET_DEBUG_STREAM("mOpenniDepthMode: " << mOpenniDepthMode);
 
@@ -2718,6 +2728,8 @@ void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat de
       sensor_msgs::CompressedImage::Ptr rvlCompressedImage(new sensor_msgs::CompressedImage());
       // Max depth , quantization, png level
       rvlCompressedImage = encodeCompressedDepthImage(*imgMsgPtr, depthCompressionType_, 15.0, 100.0, 9);
+
+      rvlCompressedImage->header = imgMsgPtr->header;
 
       {
         std::lock_guard<std::mutex> lock(mRosBagMutex);
@@ -3457,8 +3469,10 @@ void ZEDWrapperNodelet::pubVideoDepth()
   // Publish the left = rgb image if someone has subscribed to
   if (leftSubnumber + subsOverwride > 0)
    {
+    static int left_seq = 0;
     sensor_msgs::ImagePtr leftImgMsg = boost::make_shared<sensor_msgs::Image>();
-    publishImage(leftImgMsg, mat_left, mPubLeft, mLeftCamInfoMsg, mLeftCamOptFrameId, stamp, "/zed2i/zed_node/left");
+    publishImage(leftImgMsg, mat_left, mPubLeft, mLeftCamInfoMsg, mLeftCamOptFrameId, stamp, "/zed2i/zed_node/left", left_seq);
+    left_seq++;
   }
   if (rgbSubnumber > 0)
   {
@@ -3506,8 +3520,10 @@ void ZEDWrapperNodelet::pubVideoDepth()
   // Publish the right image if someone has subscribed to
   if (rightSubnumber + subsOverwride > 0)
   {
+    static int right_seq = 0;
     sensor_msgs::ImagePtr rightImgMsg = boost::make_shared<sensor_msgs::Image>();
-    publishImage(rightImgMsg, mat_right, mPubRight, mRightCamInfoMsg, mRightCamOptFrameId, stamp, "/zed2i/zed_node/right");
+    publishImage(rightImgMsg, mat_right, mPubRight, mRightCamInfoMsg, mRightCamOptFrameId, stamp, "/zed2i/zed_node/right", right_seq);
+    right_seq++;
   }
 
   // Publish the right image GRAY if someone has subscribed to
@@ -3551,8 +3567,10 @@ void ZEDWrapperNodelet::pubVideoDepth()
   // Publish the depth image if someone has subscribed to
   if (depthSubnumber + subsOverwride > 0)
   {
+    static int depth_seq = 0;
     sensor_msgs::ImagePtr depthImgMsg = boost::make_shared<sensor_msgs::Image>();
-    publishDepth(depthImgMsg, mat_depth, stamp);
+    publishDepth(depthImgMsg, mat_depth, stamp, depth_seq);
+    depth_seq++;
   }
 
   // Publish the disparity image if someone has subscribed to
@@ -3568,8 +3586,9 @@ void ZEDWrapperNodelet::pubVideoDepth()
     sl_tools::imageToROSmsg(confMapMsg, mat_conf, mConfidenceOptFrameId, stamp);
     
     if (saveRosbags_){
-
+      static int conf_seq = 0;
       sensor_msgs::CompressedImage confMapCompressedImage;
+      confMapMsg->header.seq = conf_seq;
       confMapCompressedImage.header = confMapMsg->header;
       confMapCompressedImage.format = sensor_msgs::image_encodings::MONO8;
 
@@ -3639,11 +3658,13 @@ void ZEDWrapperNodelet::pubVideoDepth()
 
       sensor_msgs::CompressedImage::Ptr rvlCompressedImage(new sensor_msgs::CompressedImage());
       rvlCompressedImage = encodeCompressedDepthImage(*confMapMsg, depthCompressionType_, 15.0, 100.0, 9);
+      rvlCompressedImage->header = confMapMsg->header;
       {
 
         std::lock_guard<std::mutex> lock(mRosBagMutex);
         outBag_depthAndConfidence.write("/gt_box/zed2i/zed_node/confidence/confidence_map/compressed", stamp, *rvlCompressedImage);
       }
+      conf_seq++;
     }
 
     mPubConfMap.publish(confMapMsg);
@@ -3890,6 +3911,10 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
 
     imuTempMsg->header.stamp = ts_imu;
 
+    static int temp_seq = 0;
+    imuTempMsg->header.seq = temp_seq;
+    temp_seq++;
+
 #ifdef DEBUG_SENS_TS
     static ros::Time old_ts;
     if (old_ts == imuTempMsg->header.stamp)
@@ -3920,9 +3945,13 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
   {
     lastTs_baro = ts_baro;
 
-    if (pressSubNumber > 0)
+    if (pressSubNumber + subsOverwride > 0)
     {
       sensor_msgs::FluidPressurePtr pressMsg = boost::make_shared<sensor_msgs::FluidPressure>();
+
+      static int baro_seq = 0;
+      pressMsg->header.seq = baro_seq;
+      baro_seq++;
 
       pressMsg->header.stamp = ts_baro;
 
@@ -3934,11 +3963,18 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
       }
       old_ts = pressMsg->header.stamp;
 #endif
-      pressMsg->header.frame_id = mBaroFrameId;
+      pressMsg->header.frame_id = mBaroFrameId; // zed2i_baro_link
       pressMsg->fluid_pressure = sens_data.barometer.pressure;  // Pascal
       pressMsg->variance = 1.0585e-2;
 
       sensors_data_published = true;
+
+      if (saveRosbags_)
+      {
+        std::lock_guard<std::mutex> lock(mRosBagMutex);
+        outBag_proprioceptive.write("/gt_box/zed2i/zed_node/barometer", ts_baro, *pressMsg);
+      }
+
       mPubPressure.publish(pressMsg);
     }
 
@@ -4001,6 +4037,10 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
 
       magMsg->header.stamp = ts_mag;
 
+      static int mag_seq = 0;
+      magMsg->header.seq = mag_seq;
+      mag_seq++;
+
 #ifdef DEBUG_SENS_TS
       static ros::Time old_ts;
       if (old_ts == magMsg->header.stamp)
@@ -4043,6 +4083,10 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     sensor_msgs::ImuPtr imuMsg = boost::make_shared<sensor_msgs::Imu>();
 
     imuMsg->header.stamp = ts_imu;
+
+    static int imu_seq = 0;
+    imuMsg->header.seq = imu_seq;
+    imu_seq++;
 
 #ifdef DEBUG_SENS_TS
     static ros::Time old_ts;
@@ -4116,7 +4160,7 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
       NODELET_DEBUG("No new IMU DATA");
   }*/
 
-  if (imu_RawSubNumber > 0 && new_imu_data)
+  if (imu_RawSubNumber + subsOverwride > 0 && new_imu_data)
   {
     lastTs_imu = ts_imu;
 
@@ -4124,6 +4168,11 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
 
     imuRawMsg->header.stamp = ts_imu;
     imuRawMsg->header.frame_id = mImuFrameId;
+
+    static int imu_raw_seq = 0;
+    imuRawMsg->header.seq = imu_raw_seq;
+    imu_raw_seq++;
+
     imuRawMsg->angular_velocity.x = sens_data.imu.angular_velocity[0] * DEG2RAD;
     imuRawMsg->angular_velocity.y = sens_data.imu.angular_velocity[1] * DEG2RAD;
     imuRawMsg->angular_velocity.z = sens_data.imu.angular_velocity[2] * DEG2RAD;
@@ -4163,6 +4212,13 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     // http://www.ros.org/reps/rep-0145.html#topics
     imuRawMsg->orientation_covariance[0] = -1;
     sensors_data_published = true;
+
+    if (saveRosbags_)
+    {
+      std::lock_guard<std::mutex> lock(mRosBagMutex);
+      outBag_proprioceptive.write("/gt_box/zed2i/zed_node/imu_raw/data", ts_imu, *imuRawMsg);
+    }
+
     mPubImuRaw.publish(imuRawMsg);
   }
 

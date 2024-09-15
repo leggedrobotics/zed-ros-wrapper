@@ -243,14 +243,14 @@ protected:
    * \param t : the ros::Time to stamp the image
    */
   void publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat img, image_transport::CameraPublisher& pubImg,
-                    sensor_msgs::CameraInfoPtr camInfoMsg, std::string imgFrameId, ros::Time t, std::string saveStopicName ="");
+                    sensor_msgs::CameraInfoPtr camInfoMsg, std::string imgFrameId, ros::Time t, std::string saveStopicName ="", int seqNum = 0);
 
   /*! \brief Publish a sl::Mat depth image with a ros Publisher
    * \param imgMsgPtr : the depth image topic message to publish
    * \param depth : the depth image to publish
    * \param t : the ros::Time to stamp the depth image
    */
-  void publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat depth, ros::Time t);
+  void publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat depth, ros::Time t, int seqNum = 0);
 
   void depthToCV8UC1(const cv::Mat& float_img, cv::Mat& mono8_img);
   void depthConversionCallback(const sensor_msgs::ImagePtr& original_image, cv::Mat& depth_mono8_img);
