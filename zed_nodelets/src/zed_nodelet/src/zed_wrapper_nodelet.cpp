@@ -140,7 +140,7 @@ void ZEDWrapperNodelet::onInit()
     std::string outBagPathTf_ = mSvoFilepath;
 
     outBagPathSensorData_.erase(outBagPathSensorData_.end() - 5, outBagPathSensorData_.end());
-    outBagPathSensorData_ += "_proprioceptive.bag";
+    outBagPathSensorData_ += "_prop.bag";
 
     outBagPathDepth_.erase(outBagPathDepth_.end() - 5, outBagPathDepth_.end());
     outBagPathDepth_ += "_depth.bag";
