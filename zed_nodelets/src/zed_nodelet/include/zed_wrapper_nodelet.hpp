@@ -675,6 +675,12 @@ private:
   std::string mClickedPtTopic = "/clicked_point";
   uint32_t subsOverwride = 1;
   bool saveRosbags_ = false;
+  bool saveRGBRosbag_ = false;
+  bool saveDepthRosbag_ = false;
+  bool savePropRosbag_ = false;
+  bool saveTFRosbag_ = false;
+  int imageDecimationRate = 1;
+  bool skipRightImage_ = false;
   std::string compressionType_ = "jpg";
   std::string depthCompressionType_ = "jpg";
   std::string saveRosbagsString_ = "";
@@ -800,7 +806,10 @@ private:
   std::mutex mCamDataMutex;
   std::mutex mPcMutex;
   std::mutex mRecMutex;
-  std::mutex mRosBagMutex;
+  std::mutex mImageRosBagMutex;
+  std::mutex mDepthRosBagMutex;
+  std::mutex mPropRosBagMutex;
+  std::mutex mTFRosBagMutex;
   std::mutex mPosTrkMutex;
   std::mutex mOdomMutex;
   std::mutex mDynParMutex;
