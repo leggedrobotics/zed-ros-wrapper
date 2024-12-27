@@ -2585,11 +2585,12 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
     {
       sensor_msgs::CompressedImage compressedImage;
       compressedImage.header = imgMsgPtr->header;
-      compressedImage.format = sensor_msgs::image_encodings::BGRA8;
+      compressedImage.format = sensor_msgs::image_encodings::RGB8;
 
       // Directly share the image data to avoid copies
-      cv_bridge::CvImageConstPtr cvImagePtr = cv_bridge::toCvShare(imgMsgPtr, sensor_msgs::image_encodings::BGRA8);
-
+      cv_bridge::CvImageConstPtr cvImagePtr = cv_bridge::toCvShare(imgMsgPtr, sensor_msgs::image_encodings::RGB8);
+      // cv::Mat bgr_img;
+      // cv::cvtColor(cvImagePtr->image, bgr_img, cv::COLOR_BGRA2RGB);
 
       //Original images are in bgra8 encoding
       // cv::Mat colorImg = cv_bridge::toCvCopy(*imgMsgPtr, sensor_msgs::image_encodings::BGRA8)->image;
@@ -2597,7 +2598,7 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
 
       // if (!savedSampleImage_)
       // {
-      //   cv::Mat img = cv::imread(image_path, cv::IMREAD_COLOR);
+        // = cv::imread(image_path, cv::IMREAD_COLOR);
       //   // cv::cvtColor(colorImg, colorImg, cv::COLOR_BGRA2BGR);
       //   std::vector<int> Savecompression_params = {cv::IMWRITE_JPEG_QUALITY, 95};
       //   cv::imwrite(image_path, colorImg, Savecompression_params);
@@ -2606,6 +2607,9 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
       //     savedSampleImage_ = true;
       //   }
       // }
+
+      // std::cout << "Conversion done. Result has " 
+      //     << cvImagePtr->image.channels() << " channels." << std::endl;
 
       if (compressionType_ == "png")
       {
