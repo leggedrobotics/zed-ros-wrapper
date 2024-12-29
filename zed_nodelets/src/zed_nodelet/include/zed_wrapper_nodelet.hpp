@@ -259,8 +259,8 @@ protected:
    */
   void publishPointCloud();
 
-  int myCompressRVL(const uint16_t * input, unsigned char * output, int numPixels);
-  void myEncodeVLE(int value);
+  int compressRVL(const uint16_t * input, unsigned char * output, int numPixels);
+  void encodeVLE(int value);
 
 
  sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(

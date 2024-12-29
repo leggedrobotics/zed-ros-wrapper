@@ -6371,227 +6371,251 @@ void ZEDWrapperNodelet::publishPoseTF(ros::Time t)
 }
 
 
- sensor_msgs::CompressedImage::Ptr ZEDWrapperNodelet::encodeCompressedDepthImage(
-     const sensor_msgs::Image& message,
-     const std::string& compression_format,
-     double depth_max, double depth_quantization, int png_level)
- {
 
-   // Compressed image message
-   sensor_msgs::CompressedImage::Ptr compressed(new sensor_msgs::CompressedImage());
-   compressed->header = message.header;
-   compressed->format = message.encoding;
+/*
+The below license is for the functions defined below. 
+These functions are copied and altered from the Image Transport package and Compressed Depth Image Transport plugin.
 
-   // Compression settings
-   std::vector<int> params;
+///////////////////////////////
 
-   // Bit depth of image encoding
-   int bitDepth = sensor_msgs::image_encodings::bitDepth(message.encoding);
-   int numChannels = sensor_msgs::image_encodings::numChannels(message.encoding);
+Copyright (c) 2012, Willow Garage, Inc.
+All rights reserved.
 
-   // print depth and channels
-    // NODELET_WARN_STREAM("Depth: " << bitDepth << " Channels: " << numChannels);
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
 
-   // Image compression configuration
-   compressed_depth_image_transport::ConfigHeader compressionConfig {};
-   compressionConfig.format = compressed_depth_image_transport::INV_DEPTH;
+ * Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above
+   copyright notice, this list of conditions and the following
+   disclaimer in the documentation and/or other materials provided
+   with the distribution.
+ * Neither the name of Willow Garage, Inc. nor the names of its
+   contributors may be used to endorse or promote products derived
+   from this software without specific prior written permission.
 
-   // Compressed image data
-   std::vector<uint8_t> compressedImage;
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+*/
 
-   // Update ros message format header
-   compressed->format += "; compressedDepth " + compression_format;
+sensor_msgs::CompressedImage::Ptr ZEDWrapperNodelet::encodeCompressedDepthImage(
+    const sensor_msgs::Image& message,
+    const std::string& compression_format,
+    double depth_max, double depth_quantization, int png_level)
+{
 
-   // Check input format
-   params.reserve(2);
-   params.emplace_back(cv::IMWRITE_PNG_COMPRESSION);
-   params.emplace_back(png_level);
+  // Compressed image message
+  sensor_msgs::CompressedImage::Ptr compressed(new sensor_msgs::CompressedImage());
+  compressed->header = message.header;
+  compressed->format = message.encoding;
 
-   if ((bitDepth == 32) && (numChannels == 1))
-   {
-     float depthZ0 = depth_quantization;
-     float depthMax = depth_max;
+  // Compression settings
+  std::vector<int> params;
 
-     // OpenCV-ROS bridge
-     cv_bridge::CvImagePtr cv_ptr;
-     try
-     {
-       cv_ptr = cv_bridge::toCvCopy(message);
-     }
-     catch (cv_bridge::Exception& e)
-     {
-      //  ROS_ERROR("%s", e.what());
-       return sensor_msgs::CompressedImage::Ptr();
-     }
+  // Bit depth of image encoding
+  int bitDepth = sensor_msgs::image_encodings::bitDepth(message.encoding);
+  int numChannels = sensor_msgs::image_encodings::numChannels(message.encoding);
 
-     const cv::Mat& depthImg = cv_ptr->image;
-     size_t rows = depthImg.rows;
-     size_t cols = depthImg.cols;
 
-     // NODELET_WARN_STREAM("rows: " << rows << " cols: " << cols);
+  // Image compression configuration
+  compressed_depth_image_transport::ConfigHeader compressionConfig {};
+  compressionConfig.format = compressed_depth_image_transport::INV_DEPTH;
 
-     if ((rows > 0) && (cols > 0))
-     {
-      double minVal = 100000;
-      double maxVal = -1;
+  // Compressed image data
+  std::vector<uint8_t> compressedImage;
 
-      cv::minMaxLoc(depthImg, &minVal, &maxVal);
-      // std::cout << "max val: " << maxVal << std::endl;
+  // Update ros message format header
+  compressed->format += "; compressedDepth " + compression_format;
 
-       // Allocate matrix for inverse depth (disparity) coding
-       cv::Mat invDepthImg(rows, cols, CV_16UC1);
+  // Check input format
+  params.reserve(2);
+  params.emplace_back(cv::IMWRITE_PNG_COMPRESSION);
+  params.emplace_back(png_level);
 
-       // Inverse depth quantization parameters
-       float depthQuantA = depthZ0 * (depthZ0 + 1.0f);
-       float depthQuantB = 1.0f - depthQuantA / depthMax;
+  if ((bitDepth == 32) && (numChannels == 1))
+  {
+    float depthZ0 = depth_quantization;
+    float depthMax = depth_max;
 
-       // Add coding parameters to header
-       compressionConfig.depthParam[0] = depthQuantA;
-       compressionConfig.depthParam[1] = depthQuantB;
+    // OpenCV-ROS bridge
+    cv_bridge::CvImagePtr cv_ptr;
+    try
+    {
+      cv_ptr = cv_bridge::toCvCopy(message);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+      return sensor_msgs::CompressedImage::Ptr();
+    }
 
-       // Matrix iterators
-       cv::MatConstIterator_<float> itDepthImg = depthImg.begin<float>(),
-                                itDepthImg_end = depthImg.end<float>();
-       cv::MatIterator_<uint16_t> itInvDepthImg = invDepthImg.begin<uint16_t>(),
-                                    itInvDepthImg_end = invDepthImg.end<uint16_t>();
+    const cv::Mat& depthImg = cv_ptr->image;
+    size_t rows = depthImg.rows;
+    size_t cols = depthImg.cols;
 
-       // Quantization
-       for (; (itDepthImg != itDepthImg_end) && (itInvDepthImg != itInvDepthImg_end); ++itDepthImg, ++itInvDepthImg)
-       {
-         // check for NaN & max depth
-         if (*itDepthImg < depthMax)
-         {
-           *itInvDepthImg = depthQuantA / *itDepthImg + depthQuantB;
-         }
-         else
-         {
-           *itInvDepthImg = 0;
-         }
-       }
+    if ((rows > 0) && (cols > 0))
+    {
 
-       // Compress quantized disparity image
-       if (compression_format == "png") {
-         try
-         {
-           if (cv::imencode(".png", invDepthImg, compressedImage, params))
-           {
-            //  float cRatio = (float)(cv_ptr->image.rows * cv_ptr->image.cols * cv_ptr->image.elemSize())
-            //      / (float)compressedImage.size();
-            //  ROS_DEBUG("Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio, compressedImage.size());
-           }
-           else
-           {
-             ROS_ERROR("cv::imencode (png) failed on input image");
-             return sensor_msgs::CompressedImage::Ptr();
-           }
-         }
-         catch (cv::Exception& e)
-         {
-          //  ROS_ERROR("%s", e.msg.c_str());
-           return sensor_msgs::CompressedImage::Ptr();
-         }
-       } else if (compression_format == "rvl") {
-         int numPixels = invDepthImg.rows * invDepthImg.cols;
-         // In the worst case, RVL compression results in ~1.5x larger data.
-         compressedImage.resize(3 * numPixels + 12);
-         uint32_t cols = invDepthImg.cols;
-         uint32_t rows = invDepthImg.rows;
-         memcpy(&compressedImage[0], &cols, 4);
-         memcpy(&compressedImage[4], &rows, 4);
+      // Allocate matrix for inverse depth (disparity) coding
+      cv::Mat invDepthImg(rows, cols, CV_16UC1);
 
-         int compressedSize = myCompressRVL(invDepthImg.ptr<uint16_t>(), &compressedImage[8], numPixels);
-         compressedImage.resize(8 + compressedSize);
-       } else if ((compression_format == "jpeg") || (compression_format == "jpg")) {
+      // Inverse depth quantization parameters
+      float depthQuantA = depthZ0 * (depthZ0 + 1.0f);
+      float depthQuantB = 1.0f - depthQuantA / depthMax;
 
-        std::vector<int> jpgparam = {cv::IMWRITE_JPEG_QUALITY, 95};
-        cv::imencode(".jpg", invDepthImg, compressedImage, jpgparam);
+      // Add coding parameters to header
+      compressionConfig.depthParam[0] = depthQuantA;
+      compressionConfig.depthParam[1] = depthQuantB;
 
-       }
-     }
-   }
-   // Raw depth map compression
-   else if ((bitDepth == 16) && (numChannels == 1))
-   {
-     // OpenCV-ROS bridge
-     cv_bridge::CvImagePtr cv_ptr;
-     try
-     {
-       cv_ptr = cv_bridge::toCvCopy(message);
-     }
-     catch (cv::Exception& e)
-     {
-      //  ROS_ERROR("%s", e.msg.c_str());
-       return sensor_msgs::CompressedImage::Ptr();
-     }
+      // Matrix iterators
+      cv::MatConstIterator_<float> itDepthImg = depthImg.begin<float>(),
+                              itDepthImg_end = depthImg.end<float>();
+      cv::MatIterator_<uint16_t> itInvDepthImg = invDepthImg.begin<uint16_t>(),
+                                  itInvDepthImg_end = invDepthImg.end<uint16_t>();
 
-     const cv::Mat& depthImg = cv_ptr->image;
-     size_t rows = depthImg.rows;
-     size_t cols = depthImg.cols;
+      // Quantization
+      for (; (itDepthImg != itDepthImg_end) && (itInvDepthImg != itInvDepthImg_end); ++itDepthImg, ++itInvDepthImg)
+      {
+        // check for NaN & max depth
+        if (*itDepthImg < depthMax)
+        {
+          *itInvDepthImg = depthQuantA / *itDepthImg + depthQuantB;
+        }
+        else
+        {
+          *itInvDepthImg = 0;
+        }
+      }
 
-     if ((rows > 0) && (cols > 0))
-     {
-       unsigned short depthMaxUShort = static_cast<unsigned short>(depth_max * 1000.0f);
-
-       // Matrix iterators
-       cv::MatIterator_<unsigned short> itDepthImg = cv_ptr->image.begin<unsigned short>(),
-                                     itDepthImg_end = cv_ptr->image.end<unsigned short>();
-
-       // Max depth filter
-       for (; itDepthImg != itDepthImg_end; ++itDepthImg)
-       {
-         if (*itDepthImg > depthMaxUShort)
-           *itDepthImg = 0;
-       }
-
-       // Compress raw depth image
-       if (compression_format == "png") {
-         if (cv::imencode(".png", cv_ptr->image, compressedImage, params))
-         {
-           float cRatio = (float)(cv_ptr->image.rows * cv_ptr->image.cols * cv_ptr->image.elemSize())
-               / (float)compressedImage.size();
+      // Compress quantized disparity image
+      if (compression_format == "png") {
+        try
+        {
+          if (cv::imencode(".png", invDepthImg, compressedImage, params))
+          {
+          //  float cRatio = (float)(cv_ptr->image.rows * cv_ptr->image.cols * cv_ptr->image.elemSize())
+          //      / (float)compressedImage.size();
           //  ROS_DEBUG("Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio, compressedImage.size());
-         }
-         else
-         {
-          //  ROS_ERROR("cv::imencode (png) failed on input image");
-           return sensor_msgs::CompressedImage::Ptr();
-         }
-       } else if (compression_format == "rvl") {
-         int numPixels = cv_ptr->image.rows * cv_ptr->image.cols;
-         // In the worst case, RVL compression results in ~1.5x larger data.
-         compressedImage.resize(3 * numPixels + 12);
-         uint32_t cols = cv_ptr->image.cols;
-         uint32_t rows = cv_ptr->image.rows;
-         memcpy(&compressedImage[0], &cols, 4);
-         memcpy(&compressedImage[4], &rows, 4);
-         compressed_depth_image_transport::RvlCodec rvl;
-         int compressedSize = myCompressRVL(cv_ptr->image.ptr<unsigned short>(), &compressedImage[8], numPixels);
-         compressedImage.resize(8 + compressedSize);
-       }
-     }
-   }
-   else
-   {
-    //  ROS_ERROR("Compressed Depth Image Transport - Compression requires single-channel 32bit-floating point or 16bit raw depth images (input format is: %s).", message.encoding.c_str());
-     return sensor_msgs::CompressedImage::Ptr();
-   }
+          }
+          else
+          {
+            ROS_ERROR("cv::imencode (png) failed on input image");
+            return sensor_msgs::CompressedImage::Ptr();
+          }
+        }
+        catch (cv::Exception& e)
+        {
+        //  ROS_ERROR("%s", e.msg.c_str());
+          return sensor_msgs::CompressedImage::Ptr();
+        }
+      } else if (compression_format == "rvl") {
+        int numPixels = invDepthImg.rows * invDepthImg.cols;
+        // In the worst case, RVL compression results in ~1.5x larger data.
+        compressedImage.resize(3 * numPixels + 12);
+        uint32_t cols = invDepthImg.cols;
+        uint32_t rows = invDepthImg.rows;
+        memcpy(&compressedImage[0], &cols, 4);
+        memcpy(&compressedImage[4], &rows, 4);
 
-   if (compressedImage.size() > 0)
-   {
-     // Add configuration to binary output
-     compressed->data.resize(sizeof(compressed_depth_image_transport::ConfigHeader));
-     memcpy(&compressed->data[0], &compressionConfig, sizeof(compressed_depth_image_transport::ConfigHeader));
+        int compressedSize = compressRVL(invDepthImg.ptr<uint16_t>(), &compressedImage[8], numPixels);
+        compressedImage.resize(8 + compressedSize);
+      } else if ((compression_format == "jpeg") || (compression_format == "jpg")) {
 
-     // Add compressed binary data to messages
-     compressed->data.insert(compressed->data.end(), compressedImage.begin(), compressedImage.end());
+      std::vector<int> jpgparam = {cv::IMWRITE_JPEG_QUALITY, 95};
+      cv::imencode(".jpg", invDepthImg, compressedImage, jpgparam);
 
-     return compressed;
-   }
+      }
+    }
+  }
+  // Raw depth map compression
+  else if ((bitDepth == 16) && (numChannels == 1))
+  {
+    // OpenCV-ROS bridge
+    cv_bridge::CvImagePtr cv_ptr;
+    try
+    {
+      cv_ptr = cv_bridge::toCvCopy(message);
+    }
+    catch (cv::Exception& e)
+    {
+      return sensor_msgs::CompressedImage::Ptr();
+    }
 
-   return sensor_msgs::CompressedImage::Ptr();
- }
+    const cv::Mat& depthImg = cv_ptr->image;
+    size_t rows = depthImg.rows;
+    size_t cols = depthImg.cols;
 
-void ZEDWrapperNodelet::myEncodeVLE(int value)
+    if ((rows > 0) && (cols > 0))
+    {
+      unsigned short depthMaxUShort = static_cast<unsigned short>(depth_max * 1000.0f);
+
+      // Matrix iterators
+      cv::MatIterator_<unsigned short> itDepthImg = cv_ptr->image.begin<unsigned short>(),
+                                    itDepthImg_end = cv_ptr->image.end<unsigned short>();
+
+      // Max depth filter
+      for (; itDepthImg != itDepthImg_end; ++itDepthImg)
+      {
+        if (*itDepthImg > depthMaxUShort)
+          *itDepthImg = 0;
+      }
+
+      // Compress raw depth image
+      if (compression_format == "png") {
+        if (cv::imencode(".png", cv_ptr->image, compressedImage, params))
+        {
+          float cRatio = (float)(cv_ptr->image.rows * cv_ptr->image.cols * cv_ptr->image.elemSize())
+              / (float)compressedImage.size();
+        }
+        else
+        {
+          return sensor_msgs::CompressedImage::Ptr();
+        }
+      } else if (compression_format == "rvl") {
+        int numPixels = cv_ptr->image.rows * cv_ptr->image.cols;
+        // In the worst case, RVL compression results in ~1.5x larger data.
+        compressedImage.resize(3 * numPixels + 12);
+        uint32_t cols = cv_ptr->image.cols;
+        uint32_t rows = cv_ptr->image.rows;
+        memcpy(&compressedImage[0], &cols, 4);
+        memcpy(&compressedImage[4], &rows, 4);
+        compressed_depth_image_transport::RvlCodec rvl;
+        int compressedSize = compressRVL(cv_ptr->image.ptr<unsigned short>(), &compressedImage[8], numPixels);
+        compressedImage.resize(8 + compressedSize);
+      }
+    }
+  }
+  else
+  {
+    return sensor_msgs::CompressedImage::Ptr();
+  }
+
+  if (compressedImage.size() > 0)
+  {
+    // Add configuration to binary output
+    compressed->data.resize(sizeof(compressed_depth_image_transport::ConfigHeader));
+    memcpy(&compressed->data[0], &compressionConfig, sizeof(compressed_depth_image_transport::ConfigHeader));
+
+    // Add compressed binary data to messages
+    compressed->data.insert(compressed->data.end(), compressedImage.begin(), compressedImage.end());
+
+    return compressed;
+  }
+
+  return sensor_msgs::CompressedImage::Ptr();
+}
+
+void ZEDWrapperNodelet::encodeVLE(int value)
 {
   do {
     int nibble = value & 0x7;  // lower 3 bits
@@ -6606,10 +6630,9 @@ void ZEDWrapperNodelet::myEncodeVLE(int value)
   } while (value);
 }
 
-int ZEDWrapperNodelet::myCompressRVL(
+int ZEDWrapperNodelet::compressRVL(
   const uint16_t * input, unsigned char * output,
-  int numPixels)
-{
+  int numPixels){
   buffer_ = pBuffer_ = reinterpret_cast<int *>(output);
   nibblesWritten_ = 0;
   const uint16_t * end = input + numPixels;
@@ -6618,15 +6641,15 @@ int ZEDWrapperNodelet::myCompressRVL(
     int zeros = 0, nonzeros = 0;
     for (; (input != end) && !*input; input++, zeros++) {
     }
-    myEncodeVLE(zeros);  // number of zeros
+    encodeVLE(zeros);  // number of zeros
     for (const uint16_t * p = input; (p != end) && *p++; nonzeros++) {
     }
-    myEncodeVLE(nonzeros);  // number of nonzeros
+    encodeVLE(nonzeros);  // number of nonzeros
     for (int i = 0; i < nonzeros; i++) {
       uint16_t current = *input++;
       int delta = current - previous;
       int positive = (delta << 1) ^ (delta >> 31);
-      myEncodeVLE(positive);  // nonzero value
+      encodeVLE(positive);  // nonzero value
       previous = current;
     }
   }
