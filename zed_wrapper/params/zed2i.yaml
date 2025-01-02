@@ -26,7 +26,7 @@ object_detection:
     max_range:                  10.             # Maximum detection range
     object_tracking_enabled:    false            # Enable/disable the tracking of the detected objects
     body_fitting:               false           # Enable/disable body fitting for 'HUMAN_BODY_X' models
-    mc_people:                  true            # Enable/disable the detection of persons for 'MULTI_CLASS_BOX_X' models
+    mc_people:                  false            # Enable/disable the detection of persons for 'MULTI_CLASS_BOX_X' models
     mc_vehicle:                 false           # Enable/disable the detection of vehicles for 'MULTI_CLASS_BOX_X' models
     mc_bag:                     false           # Enable/disable the detection of bags for 'MULTI_CLASS_BOX_X' models
     mc_animal:                  false           # Enable/disable the detection of animals for 'MULTI_CLASS_BOX_X' models

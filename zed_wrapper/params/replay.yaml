@@ -2,14 +2,26 @@ general:
     base_frame:                 'zed_base_link'                 # this will be overridden by the launch file.
     verbose:                    false                           # Enable info message by the ZED SDK
     svo_realtime:               false                           # keep it false to run it faster than realtime.
-    pub_frame_rate:             15.0
     self_calib:                 false                           # if this is enabled left camera -> IMU calibration will be done
+    save_image_bag:             true                            # if enabled image bags will be saved
+    save_depth_bag:             true                            # if enabled depth bags will be saved
+    save_prop_bag:              true                            # if enabled prop bags will be saved
+    save_tf_bag:                true                            # If enabled the map->base_link and odom->base_link is published as tf.
     save_grandtour_rosbags:     true                            # if enabled grandtour bags will be saved
-    saved_image_compression_type: jpg                           # Compression type png or jpg. Not used if `save_grandtour_rosbags` is false
-    saved_depth_compression_type: jpg                           # Compression type png, rvl or jpg. Not used if `save_grandtour_rosbags` is false
+    image_decimate_rate:        1.0                             # Decimation rate for image saving.
+    skip_right_image:           true                            # Whether to skip the right image. 
+    saved_image_compression_type: png                           # Compression type png or jpg. Not used if `save_grandtour_rosbags` is false
+    saved_depth_compression_type: rvl                           # Currently RVL is default and supported. Compression type png, rvl or jpg. Not used if `save_grandtour_rosbags` is false
+    pub_downscale_factor:       1.0                             # rescale factor used to rescale image before publishing when 'pub_resolution' is 'CUSTOM'
+    pub_frame_rate:             60.0                            # Pub level maxed-out but overridden when bag saving is enabled
 pos_tracking:
     pos_tracking_enabled:       true
+    imu_fusion:                 true
     area_memory:                false
+    pos_tracking_mode:          'GEN_2'
 depth:
     depth_mode:                 'ULTRA'                         # 'NONE', 'PERFORMANCE', 'QUALITY', 'ULTRA', 'NEURAL', `NEURAL_PLUS`
     openni_depth_mode:          false                           # if enabled, uses UINT16 depth data
+    depth_stabilization:        10
+mapping:
+    mapping_enabled:            false
