@@ -18,9 +18,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
 <launch>
     <!-- Camera Model and Name -->
-    <arg name="image_rosbag_path" default=""/>
-    <arg name="depth_rosbag_path" default=""/>
-    <arg name="sensor_rosbag_path" default=""/>
+    <arg name="base_path"         default="/home/tutuna/Videos/evo_integration_heap/" /> <!-- The name you want -->
+    <arg name="image_rosbag_path" default="$(arg base_path)2024-11-14-13-45-37_jetson_zed2i_images.bag"/>
+    <arg name="depth_rosbag_path" default="$(arg base_path)2024-11-14-13-45-37_jetson_zed2i_depth.bag"/>
+    <arg name="tf_rosbag_path"    default="$(arg base_path)2024-11-14-13-45-37_jetson_zed2i_tf.bag"/>
 
     <param name="/use_sim_time" value="true"/>
     <arg name="camera_name"           default="zed2i" /> <!-- The name you want -->
@@ -32,6 +33,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     <!-- Publish ZED urdf -->
     <arg name="publish_urdf"          default="true" />
+
+    <!-- Enable Standalone Viz -->
+    <arg name="enable_viz"          default="false" />
 
     <!-- Position respect to base frame (i.e. "base_link) -->
     <arg name="cam_pos_x"             default="0.0" />
@@ -63,7 +67,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         </node>
     </group>
 
-    <node name="zed_left_Rgb" pkg="image_transport" type="republish" args="compressed in:=/gt_box/zed2i/zed_node/left/image_rect_color raw out:=/gt_box/zed2i/zed_node/left/image_rect_color"/>
+    <node name="zed_left_rgb" pkg="image_transport" type="republish" args="compressed in:=/gt_box/zed2i/zed_node/left/image_rect_color raw out:=/gt_box/zed2i/zed_node/left/image_rect_color"/>
+    <node name="zed_right_rgb" pkg="image_transport" type="republish" args="compressed in:=/gt_box/zed2i/zed_node/right/image_rect_color raw out:=/gt_box/zed2i/zed_node/right/image_rect_color"/>
+
     <node name="zed_depth" pkg="image_transport" type="republish" args="compressedDepth in:=/gt_box/zed2i/zed_node/depth/depth_registered raw out:=/gt_box/zed2i/zed_node/depth/depth_registered"/>
     
     <!-- <node name="image_transport_depth_mono" pkg="image_transport" type="republish" args="compressed in:=/zed2i/zed_node/depth_mono/depth_registered raw out:=/zed2i/zed_node/depth_mono/depth_registered" />
@@ -71,50 +77,43 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     
     <node pkg="rviz" name="rviz" type="rviz" args="-d '$(find zed_wrapper)/rviz/rviz.rviz'" required="true"/>
     
-    <!-- RQT IM, left RGB view -->
-    <node name="image_view_left" 
-          pkg="image_view" 
-          type="image_view" 
-          respawn="false" 
-          output="screen" >
-      <param name="image_transport" value="compressed" />
-      <remap from="image" to="/gt_box/zed2i/zed_node/left/image_rect_color" />           
-    </node> 
+    <group if="$(arg enable_viz)">
+        <!-- RQT IM, left RGB view -->
+        <node name="image_view_left" 
+              pkg="image_view" 
+              type="image_view" 
+              respawn="false" 
+              output="screen" >
+          <param name="image_transport" value="compressed" />
+          <remap from="image" to="/gt_box/zed2i/zed_node/left/image_rect_color" />           
+        </node> 
 
-    <!-- Depth RVL view -->
-    <node name="depth_rvl_view" 
-          pkg="image_view" 
-          type="image_view" 
-          respawn="false" 
-          output="screen" >
-      <param name="image_transport" value="raw" />
-      <remap from="image" to="/gt_box/zed2i/zed_node/depth/depth_registered" />
-        <param name="colormap" value="2" />
-        <param name="min_image_value" value="0.5" />
-        <param name="max_image_value" value="15.0" />
-        <param name="dynamic_range" value="false" />
-        <param name="autosize" value="true" />
-    </node> 
+        <node name="image_view_right" 
+              pkg="image_view" 
+              type="image_view" 
+              respawn="false" 
+              output="screen" >
+          <param name="image_transport" value="compressed" />
+          <remap from="image" to="/gt_box/zed2i/zed_node/right/image_rect_color" />           
+        </node> 
 
-    <!-- <node name="image_view_depth_mono" 
-          pkg="image_view" 
-          type="image_view" 
-          respawn="false" 
-          output="screen" >
-      <param name="image_transport" value="compressed" />
-      <remap from="image" to="/zed2i/zed_node/depth_mono/depth_registered" />           
-    </node> 
+        <!-- Depth RVL view -->
+        <node name="depth_rvl_view" 
+              pkg="image_view" 
+              type="image_view" 
+              respawn="false" 
+              output="screen" >
+          <param name="image_transport" value="raw" />
+          <remap from="image" to="/gt_box/zed2i/zed_node/depth/depth_registered" />
+            <param name="colormap" value="2" />
+            <param name="min_image_value" value="0.5" />
+            <param name="max_image_value" value="15.0" />
+            <param name="dynamic_range" value="false" />
+            <param name="autosize" value="true" />
+        </node> 
+    </group>
 
-    <node name="image_view_depth_conf" 
-          pkg="image_view" 
-          type="image_view" 
-          respawn="false" 
-          output="screen" >
-      <param name="image_transport" value="compressed" />
-      <remap from="image" to="/zed2i/zed_node/confidence_mono/confidence_map" />           
-    </node>  -->
-
-    <node pkg="rosbag" type="play" name="player" output="screen" launch-prefix="xterm -bg lightblue -fg darkslategrey -bd plum -bw 10 -geometry 80x40-50+250 -e " args="--clock -r 1 $(arg sensor_rosbag_path) $(arg image_rosbag_path) $(arg depth_rosbag_path)"/>
+    <node pkg="rosbag" type="play" name="player" output="screen" launch-prefix="xterm -bg lightblue -fg darkslategrey -bd plum -bw 10 -geometry 80x40-50+250 -e " args="--clock -r 1 $(arg tf_rosbag_path) $(arg image_rosbag_path) $(arg depth_rosbag_path)"/>
 
 
 </launch>

@@ -47,12 +47,13 @@ depth:
     depth_mode:                 'NONE'                         # 'NONE', 'PERFORMANCE', 'QUALITY', 'ULTRA', 'NEURAL', `NEURAL_PLUS`
     depth_stabilization:        1                               # [0-100] - 0: Disabled
     openni_depth_mode:          false                           # 'false': 32bit float meter units, 'true': 16bit uchar millimeter units
+    depth_infill:               false                           # Enable depth infill
 
 pos_tracking:
     pos_tracking_enabled:       false                           # True to enable positional tracking from start
     pos_tracking_mode:          'GEN_2'                         # Matches the ZED SDK setting: 'GEN_1', 'GEN_2'
     set_gravity_as_origin:      true                            # If 'true' align the positional tracking world to imu gravity measurement. Keep the yaw from the user initial pose.
-    imu_fusion:                 true                            # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
+    imu_fusion:                 false                            # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
     publish_tf:                 true                            # publish `odom -> base_link` TF
     publish_map_tf:             true                            # publish `map -> odom` TF
     map_frame:                  'zed2i_map'                     # main frame
@@ -69,6 +70,7 @@ pos_tracking:
     fixed_z_value:              0.00                            # Value to be used for Z coordinate if `two_d_mode` is true
     depth_min_range:            0.0                             # Set this value for removing fixed zones of the robot in the FoV of the camerafrom the visual odometry evaluation
     set_as_static:              false                           # If 'true' the camera will be static and not move in the environment
+    pose_smoothing:             false                           # Pose smoothing for VR/AR applications
 
 mapping:
     mapping_enabled:            false                           # True to enable mapping and fused point cloud publication

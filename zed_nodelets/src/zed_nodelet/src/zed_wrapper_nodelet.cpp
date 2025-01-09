@@ -984,6 +984,9 @@ void ZEDWrapperNodelet::readDepthParams()
   std::string depth_mode_str = sl::toString(mDepthMode).c_str();
   mNhNs.getParam("depth/depth_mode", depth_mode_str);
 
+  mNhNs.getParam("depth/depth_infill", mInfillMode);
+  NODELET_INFO_STREAM(" * Depth Infilling\t\t\t-> " << (mInfillMode ? "ENABLED" : "DISABLED"));
+
   bool matched = false;
   for (int mode = static_cast<int>(sl::DEPTH_MODE::NONE); mode < static_cast<int>(sl::DEPTH_MODE::LAST); ++mode)
   {
@@ -1085,6 +1088,8 @@ void ZEDWrapperNodelet::readPosTrkParams()
     NODELET_INFO_STREAM(" * Area Memory\t\t\t-> " << (mAreaMemory ? "ENABLED" : "DISABLED"));
     mNhNs.getParam("pos_tracking/imu_fusion", mImuFusion);
     NODELET_INFO_STREAM(" * IMU Fusion\t\t\t-> " << (mImuFusion ? "ENABLED" : "DISABLED"));
+    mNhNs.getParam("pos_tracking/pose_smoothing", mPoseSmoothing);
+    NODELET_INFO_STREAM(" * Pose Smoothing\t\t\t-> " << (mPoseSmoothing ? "ENABLED" : "DISABLED"));
     mNhNs.getParam("pos_tracking/floor_alignment", mFloorAlignment);
     NODELET_INFO_STREAM(" * Floor alignment\t\t-> " << (mFloorAlignment ? "ENABLED" : "DISABLED"));
     mNhNs.getParam("pos_tracking/init_odom_with_first_valid_pose", mInitOdomWithPose);
@@ -2262,7 +2267,6 @@ void ZEDWrapperNodelet::start_pos_tracking()
   posTrackParams.initial_world_transform = mInitialPoseSl;
   posTrackParams.enable_area_memory = mAreaMemory;
 
-  mPoseSmoothing = false;  // Always false. Pose Smoothing is to be enabled only for VR/AR applications
   posTrackParams.enable_pose_smoothing = mPoseSmoothing;
   posTrackParams.set_floor_as_origin = mFloorAlignment;
   posTrackParams.depth_min_range = static_cast<float>(mPosTrkMinDepth);
@@ -2498,28 +2502,13 @@ void ZEDWrapperNodelet::publishPose()
     for (size_t i = 0; i < poseCov->pose.covariance.size(); i++)
     {
       poseCov->pose.covariance[i] = static_cast<double>(mLastZedPose.pose_covariance[i]);
-
-      if (saveRosbags_ && savePropRosbag_)
-      {
-        std::lock_guard<std::mutex> lock(mPropRosBagMutex);
-        outBag_proprioceptive.write("/gt_box/zed2i/zed_node/map_pose", poseCov->header.stamp, *poseCov);
-      }
-
-      if (mTwoDMode)
-      {
-        if ((i >= 2 && i <= 4) || (i >= 8 && i <= 10) || (i >= 12 && i <= 29) || (i >= 32 && i <= 34))
-        {
-          poseCov->pose.covariance[i] = 1e-9;  // Very low covariance if 2D mode
-        }
-      }
     }
 
-    // if ((poseCovSub > 0))
-    // {
-    //   // Publish pose with covariance stamped message
-    //   NODELET_DEBUG("Publishing POSE COV message");
-    //   mPubPoseCov.publish(std::move(poseCov));
-    // }
+    if (saveRosbags_ && savePropRosbag_)
+    {
+      std::lock_guard<std::mutex> lock(mPropRosBagMutex);
+      outBag_proprioceptive.write("/gt_box/zed2i/zed_node/map_pose", poseCov->header.stamp, *poseCov);
+    }
   }
 }
 
@@ -4399,8 +4388,8 @@ void ZEDWrapperNodelet::device_poll_thread_func()
       {
         runParams.confidence_threshold = mCamDepthConfidence;
         runParams.texture_confidence_threshold = mCamDepthTextureConf;
-        runParams.enable_depth = true;  // Ask to compute the depth
-        // runParams.enable_fill_mode = true;
+        runParams.enable_depth = mComputeDepth;
+        runParams.enable_fill_mode = mInfillMode;
       }
       else
       {
@@ -6075,21 +6064,6 @@ void ZEDWrapperNodelet::processOdometry()
     mOdomMutex.lock();  //
     mOdom2BaseTransf = mOdom2BaseTransf * deltaOdomTf_base;
 
-    if (mTwoDMode)
-    {
-      tf2::Vector3 tr_2d = mOdom2BaseTransf.getOrigin();
-      tr_2d.setZ(mFixedZValue);
-      mOdom2BaseTransf.setOrigin(tr_2d);
-
-      double roll, pitch, yaw;
-      tf2::Matrix3x3(mOdom2BaseTransf.getRotation()).getRPY(roll, pitch, yaw);
-
-      tf2::Quaternion quat_2d;
-      quat_2d.setRPY(0.0, 0.0, yaw);
-
-      mOdom2BaseTransf.setRotation(quat_2d);
-    }
-
     double roll, pitch, yaw;
     tf2::Matrix3x3(mOdom2BaseTransf.getRotation()).getRPY(roll, pitch, yaw);
 
@@ -6133,6 +6107,7 @@ void ZEDWrapperNodelet::processPose()
 
   if (quat.sum() == 0)
   {
+    NODELET_WARN("WTF QUAT SUM 0");
     return;
   }
 
@@ -6152,20 +6127,6 @@ void ZEDWrapperNodelet::processPose()
 
     mMap2BaseTransf =
         mSensor2BaseTransf.inverse() * map_to_sens_transf * mSensor2BaseTransf;  // Base position in map frame
-
-    if (mTwoDMode)
-    {
-      tf2::Vector3 tr_2d = mMap2BaseTransf.getOrigin();
-      tr_2d.setZ(mFixedZValue);
-      mMap2BaseTransf.setOrigin(tr_2d);
-
-      tf2::Matrix3x3(mMap2BaseTransf.getRotation()).getRPY(roll, pitch, yaw);
-
-      tf2::Quaternion quat_2d;
-      quat_2d.setRPY(0.0, 0.0, yaw);
-
-      mMap2BaseTransf.setRotation(quat_2d);
-    }
 
     // double roll, pitch, yaw;
     tf2::Matrix3x3(mMap2BaseTransf.getRotation()).getRPY(roll, pitch, yaw);

@@ -787,6 +787,7 @@ private:
   bool mInitOdomWithPose;
   bool mUpdateDynParams = false;
   bool mPublishingData = false;
+  bool mInfillMode = false;
 
   // SVO recording
   bool mRecording = false;
