@@ -2603,7 +2603,7 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
       if (compressionType_ == "png")
       {
         // PNG compression level, 9 == full , 0  == none
-        compressedImage.format += "; compressed png";
+        compressedImage.format += ";png compressed rgb8";
         std::vector<int> param = {cv::IMWRITE_PNG_COMPRESSION, 0};
         cv::imencode(".png", cvImagePtr->image, compressedImage.data, param);
       }
