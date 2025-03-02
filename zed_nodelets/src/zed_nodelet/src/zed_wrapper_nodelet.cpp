@@ -2648,8 +2648,8 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
 
       if (flipImage_)
       {
-        compressedImage.header.frame_id = imgFrameId + "_flipped";
-        camInfoMsg->header.frame_id = imgFrameId + "_flipped";
+        // compressedImage.header.frame_id = imgFrameId + "_flipped";
+        // camInfoMsg->header.frame_id = imgFrameId + "_flipped";
 
         cv::flip(cvImagePtr->image, cvImagePtr->image, -1);
 
@@ -2825,8 +2825,8 @@ void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat de
 
     if (flipImage_)
     {
-      mDepthCamInfoMsg->header.frame_id = mDepthOptFrameId + "_flipped";
-      imgMsgPtr->header.frame_id = mDepthOptFrameId + "_flipped";
+      // mDepthCamInfoMsg->header.frame_id = mDepthOptFrameId + "_flipped";
+      // imgMsgPtr->header.frame_id = mDepthOptFrameId + "_flipped";
 
       sensor_msgs::CameraInfo camInfoLocal = *mDepthCamInfoMsg;
 
@@ -3767,10 +3767,10 @@ void ZEDWrapperNodelet::pubVideoDepth()
     if (saveRosbags_){
       static int conf_seq = 0;
 
-      if (flipImage_)
-      {
-        confMapMsg->header.frame_id = mConfidenceOptFrameId + "_flipped";
-      }
+      // if (flipImage_)
+      // {
+      //   confMapMsg->header.frame_id = mConfidenceOptFrameId + "_flipped";
+      // }
       
 
       sensor_msgs::CompressedImage::Ptr rvlCompressedImage(new sensor_msgs::CompressedImage());
