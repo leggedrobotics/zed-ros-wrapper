@@ -5,7 +5,7 @@ general:
     base_frame:                 'zed_base_link'                 # this will be overridden by the launch file.
     verbose:                    false                           # Enable info message by the ZED SDK
     svo_realtime:               false                           # keep it false to run it faster than realtime.
-    self_calib:                 true                            # if this is enabled left camera -> IMU calibration will be done
+    self_calib:                 false                            # if this is enabled left camera -> IMU calibration will be done
     save_image_bag:             true                            # if enabled image bags will be saved
     save_depth_bag:             true                            # if enabled depth bags will be saved
     save_prop_bag:              true                            # if enabled prop bags will be saved

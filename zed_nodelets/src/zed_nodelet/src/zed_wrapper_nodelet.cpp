@@ -2638,6 +2638,12 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
       // Directly share the image data to avoid copies
       // cv_bridge::CvImageConstPtr cvImagePtr = cv_bridge::toCvShare(imgMsgPtr, sensor_msgs::image_encodings::RGB8);
 
+      // Check if the image is empty
+      if (imgMsgPtr->data.empty() || imgMsgPtr->height == 0 || imgMsgPtr->width == 0) {
+        NODELET_WARN("Empty image in imgMsgPtr, skipping conversion. Frame ID: %s", imgFrameId.c_str());
+        return;
+      }
+
       cv_bridge::CvImagePtr cvImagePtr = cv_bridge::toCvCopy(imgMsgPtr, sensor_msgs::image_encodings::RGB8);
 
       if (flipImage_)
@@ -3503,7 +3509,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
     grab_ts = mat_right.timestamp;
   }
   
-  if ( (rightRawSubnumber + stereoRawSubNumber + subsOverwride > 0) && (saveUnrectified_) && (saveRGBRosbag_))
+  if ( (rightRawSubnumber + stereoRawSubNumber + subsOverwride > 0) && (!skipRightImage_) && (saveRGBRosbag_) && (saveUnrectified_))
   {
     mZed.retrieveImage(mat_right_raw, sl::VIEW::RIGHT_UNRECTIFIED, sl::MEM::CPU, mMatResol);
     retrieved = true;
@@ -3687,7 +3693,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
   }
 
   // Publish the right image if someone has subscribed to
-  if ((rightSubnumber + subsOverwride > 0) && (!skipRightImage_) && (saveRGBRosbag_))
+  if ((rightSubnumber + subsOverwride > 0) && (!skipRightImage_) && (!saveUnrectified_) && (saveRGBRosbag_))
   {
     static int right_seq = 0;
     sensor_msgs::ImagePtr rightImgMsg = boost::make_shared<sensor_msgs::Image>();
@@ -4528,7 +4534,7 @@ void ZEDWrapperNodelet::device_poll_thread_func()
         if (saveRosbags_){
           if (mSvoMode && mGrabStatus == sl::ERROR_CODE::END_OF_SVOFILE_REACHED)
           {
-
+            NODELET_INFO_STREAM("\033[1;32mSVO file reached end successfully.\033[0m");
             // NODELET_WARN("Custom END_OF_SVOFILE_REACHED");
 
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -6530,6 +6536,7 @@ sensor_msgs::CompressedImage::Ptr ZEDWrapperNodelet::encodeCompressedDepthImage(
     }
     catch (cv_bridge::Exception& e)
     {
+      ROS_ERROR_STREAM("cv_bridge exception: " << e.what());
       return sensor_msgs::CompressedImage::Ptr();
     }
 
@@ -6627,6 +6634,7 @@ sensor_msgs::CompressedImage::Ptr ZEDWrapperNodelet::encodeCompressedDepthImage(
     }
     catch (cv::Exception& e)
     {
+      ROS_ERROR_STREAM("cv_bridge exception: " << e.what());
       return sensor_msgs::CompressedImage::Ptr();
     }
 

@@ -168,6 +168,7 @@ void imageToROSmsg(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat img, std::string fra
 {
   if (!imgMsgPtr)
   {
+    std::cerr << "Warning: imgMsgPtr is not initialized" << std::endl;
     return;
   }
 
