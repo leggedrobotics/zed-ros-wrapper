@@ -99,6 +99,27 @@ typedef enum
 
 class ZEDWrapperNodelet : public nodelet::Nodelet
 {
+  struct TopicNames
+  {
+    std::string left;
+    std::string left_cam_info;
+    std::string left_raw;
+    std::string left_raw_cam_info;
+    std::string right;
+    std::string right_cam_info;
+    std::string right_raw;
+    std::string right_raw_cam_info;
+    std::string depth;
+    std::string depth_cam_info;
+    std::string confidence;
+    std::string imu;
+    std::string temp;
+    std::string baro;
+    std::string mag;
+    std::string odomTopic;
+    std::string mapTopic;
+  };
+
   typedef enum _dyn_params
   {
     DATAPUB_FREQ = 0,
@@ -507,6 +528,8 @@ protected:
   rosbag::Bag outBag_tf;
   rosbag::Bag outBag_depthAndConfidence;
 
+  TopicNames topicNames_;
+
 private:
   uint64_t mFrameCount = 0;
 
@@ -675,12 +698,16 @@ private:
   std::string mClickedPtTopic = "/clicked_point";
   uint32_t subsOverwride = 1;
   bool saveRosbags_ = false;
+  bool flipImage_ = false;
+  bool saveUnrectified_ = false;
+  bool usePublicNamespace_ = false;
   bool saveRGBRosbag_ = false;
   bool saveDepthRosbag_ = false;
   bool savePropRosbag_ = false;
   bool saveTFRosbag_ = false;
   int imageDecimationRate = 1;
   bool skipRightImage_ = false;
+  bool skipConfidenceImage_ = false;
   std::string compressionType_ = "jpg";
   std::string depthCompressionType_ = "jpg";
   std::string saveRosbagsString_ = "";
