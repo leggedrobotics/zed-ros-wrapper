@@ -1,11 +1,12 @@
 auto_exposure_gain:             false
 gain:                           100                             # Dynamic - works only if `auto_exposure_gain` is false
 exposure:                       100                             # Dynamic - works only if `auto_exposure_gain` is false
+point_cloud_freq:               15.0                            # Currently not used as it bloats
 general:
     base_frame:                 'zed_base_link'                 # this will be overridden by the launch file.
     verbose:                    false                           # Enable info message by the ZED SDK
     svo_realtime:               false                           # keep it false to run it faster than realtime.
-    self_calib:                 false                            # if this is enabled left camera -> IMU calibration will be done
+    self_calib:                 true                            # if this is enabled left camera -> IMU calibration will be done
     save_image_bag:             true                            # if enabled image bags will be saved
     save_depth_bag:             true                            # if enabled depth bags will be saved
     save_prop_bag:              true                            # if enabled prop bags will be saved
@@ -18,24 +19,24 @@ general:
     saved_depth_compression_type: rvl                           # Currently RVL is default and supported. Compression type png, rvl or jpg. Not used if `save_grandtour_rosbags` is false
     pub_downscale_factor:       1.0                             # rescale factor used to rescale image before publishing when 'pub_resolution' is 'CUSTOM'
     pub_frame_rate:             15.0                            # Pub level maxed-out but overridden when bag saving is enabled
-    flip_images:                true                           # Flip images horizontally
-    save_unrectified:           true                           # Save unrectified images
-    use_public_namespace:       true                           # Use public namespace for topics
+    flip_images:                true                            # Flip images horizontally
+    save_unrectified:           true                            # Save unrectified images
+    use_public_namespace:       true                            # Use public namespace for topics
 
 pos_tracking:
     pos_tracking_enabled:       true
-    imu_fusion:                 true                           # IMU fusion is not working. This is an issue with SDK.
+    imu_fusion:                 false                           
     area_memory:                true
     pos_tracking_mode:          'GEN_2'
     pose_smoothing:             false                           # Pose smoothing for VR/AR applications
-    depth_min_range:            1 
+    depth_min_range:            0.3 
 
 depth:
-    depth_mode:                 'NEURAL_PLUS'                         # 'NONE', 'PERFORMANCE', 'QUALITY', 'ULTRA', 'NEURAL', `NEURAL_PLUS`
+    depth_mode:                 'NEURAL_PLUS'                   # 'NONE', 'PERFORMANCE', 'QUALITY', 'ULTRA', 'NEURAL', `NEURAL_PLUS`
     openni_depth_mode:          false                           # if enabled, uses UINT16 depth data
     depth_stabilization:        1
     depth_infill:               false
-    depth_confidence:           1                              
+    depth_confidence:           10                         
     depth_texture_conf:         100                             
     min_depth:                  0.3
     max_depth:                  10.0            # Max: 40.0

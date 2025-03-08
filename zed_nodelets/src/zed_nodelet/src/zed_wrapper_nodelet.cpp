@@ -2648,63 +2648,13 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
 
       if (flipImage_)
       {
-        // compressedImage.header.frame_id = imgFrameId + "_flipped";
-        // camInfoMsg->header.frame_id = imgFrameId + "_flipped";
-
-        cv::flip(cvImagePtr->image, cvImagePtr->image, -1);
-
-
-        sensor_msgs::CameraInfo camInfoLocal = *camInfoMsg;
-
-        double fx = camInfoLocal.K[0];
-        double fy = camInfoLocal.K[4];
-        double cx = camInfoLocal.K[2];
-        double cy = camInfoLocal.K[5];
+        cv::Point2f center(cvImagePtr->image.cols / 2.0F, cvImagePtr->image.rows / 2.0F);
+        cv::Mat rot_mat = cv::getRotationMatrix2D(center, 180.0, 1.0);
         
-        camInfoMsg->K[0] = fx;
-        camInfoMsg->K[1] = 0;
-        camInfoMsg->K[2] = (camInfoLocal.width  - 1) - cx;  // New principal point x
-        camInfoMsg->K[3] = 0;
-        camInfoMsg->K[4] = fy;
-        camInfoMsg->K[5] = (camInfoLocal.height - 1) - cy;  // New principal point y
-        camInfoMsg->K[6] = 0;
-        camInfoMsg->K[7] = 0;
-        camInfoMsg->K[8] = 1;
-
-        // Update rectification matrix R to include the 180° rotation.
-        camInfoMsg->R[0] = -1;
-        camInfoMsg->R[1] =  0;
-        camInfoMsg->R[2] =  0;
-        camInfoMsg->R[3] =  0;
-        camInfoMsg->R[4] = -1;
-        camInfoMsg->R[5] =  0;
-        camInfoMsg->R[6] =  0;
-        camInfoMsg->R[7] =  0;
-        camInfoMsg->R[8] =  1;
-
-        // Update projection matrix P accordingly.
-        camInfoMsg->P[0]  = fx;
-        camInfoMsg->P[1]  = 0;
-        camInfoMsg->P[2]  = (camInfoLocal.width - 1) - cx;
-        camInfoMsg->P[3]  = 0;
-        camInfoMsg->P[4]  = 0;
-        camInfoMsg->P[5]  = fy;
-        camInfoMsg->P[6]  = (camInfoLocal.height - 1) - cy;
-        camInfoMsg->P[7]  = 0;
-        camInfoMsg->P[8]  = 0;
-        camInfoMsg->P[9]  = 0;
-        camInfoMsg->P[10] = 1;
-        camInfoMsg->P[11] = 0;
-
+        // Rotate the image (result will be stored back in image)
+        cv::warpAffine(cvImagePtr->image, cvImagePtr->image, rot_mat, cvImagePtr->image.size());
+      
       }
-
-      // if (flipHorizontal && flipVertical) {
-      //   cv::flip(raw, raw, -1);
-      // } else if (flipHorizontal) {
-      //   cv::flip(raw, raw, 1);
-      // } else if (flipVertical) {
-      //   cv::flip(raw, raw, 0);
-      // }
 
       if (compressionType_ == "png")
       {
@@ -2823,59 +2773,6 @@ void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat de
   if (saveRosbags_)
   {
 
-    if (flipImage_)
-    {
-      // mDepthCamInfoMsg->header.frame_id = mDepthOptFrameId + "_flipped";
-      // imgMsgPtr->header.frame_id = mDepthOptFrameId + "_flipped";
-
-      sensor_msgs::CameraInfo camInfoLocal = *mDepthCamInfoMsg;
-
-      double fx = camInfoLocal.K[0];
-      double fy = camInfoLocal.K[4];
-      double cx = camInfoLocal.K[2];
-      double cy = camInfoLocal.K[5];
-      
-      mDepthCamInfoMsg->K[0] = fx;
-      mDepthCamInfoMsg->K[1] = 0;
-      mDepthCamInfoMsg->K[2] = (camInfoLocal.width  - 1) - cx;  // New principal point x
-      mDepthCamInfoMsg->K[3] = 0;
-      mDepthCamInfoMsg->K[4] = fy;
-      mDepthCamInfoMsg->K[5] = (camInfoLocal.height - 1) - cy;  // New principal point y
-      mDepthCamInfoMsg->K[6] = 0;
-      mDepthCamInfoMsg->K[7] = 0;
-      mDepthCamInfoMsg->K[8] = 1;
-
-      // Update rectification matrix R to include the 180° rotation.
-      mDepthCamInfoMsg->R[0] = -1;
-      mDepthCamInfoMsg->R[1] =  0;
-      mDepthCamInfoMsg->R[2] =  0;
-      mDepthCamInfoMsg->R[3] =  0;
-      mDepthCamInfoMsg->R[4] = -1;
-      mDepthCamInfoMsg->R[5] =  0;
-      mDepthCamInfoMsg->R[6] =  0;
-      mDepthCamInfoMsg->R[7] =  0;
-      mDepthCamInfoMsg->R[8] =  1;
-
-      // Update projection matrix P accordingly.
-      mDepthCamInfoMsg->P[0]  = fx;
-      mDepthCamInfoMsg->P[1]  = 0;
-      mDepthCamInfoMsg->P[2]  = (camInfoLocal.width - 1) - cx;
-      mDepthCamInfoMsg->P[3]  = 0;
-      mDepthCamInfoMsg->P[4]  = 0;
-      mDepthCamInfoMsg->P[5]  = fy;
-      mDepthCamInfoMsg->P[6]  = (camInfoLocal.height - 1) - cy;
-      mDepthCamInfoMsg->P[7]  = 0;
-      mDepthCamInfoMsg->P[8]  = 0;
-      mDepthCamInfoMsg->P[9]  = 0;
-      mDepthCamInfoMsg->P[10] = 1;
-      mDepthCamInfoMsg->P[11] = 0;
-
-    }
-    //  For horizontal and vertical flip cv::flip(raw, raw, -1);
-    //  for horizontal flip cv::flip(raw, raw, 1);
-    //  for vertical flip cv::flip(raw, raw, 0);
-
-
     sensor_msgs::CompressedImage::Ptr rvlCompressedImage(new sensor_msgs::CompressedImage());
     // Max depth , quantization, png level
     rvlCompressedImage = encodeCompressedDepthImage(*imgMsgPtr, depthCompressionType_, mCamMaxDepth, 100.0, 0);
@@ -2980,11 +2877,10 @@ void ZEDWrapperNodelet::publishPointCloud()
   // Initialize Point Cloud message
   // https://github.com/ros/common_msgs/blob/jade-devel/sensor_msgs/include/sensor_msgs/point_cloud2_iterator.h
 
-
-  if (mPubCloud.getNumSubscribers() == 0)
-  {
-    return;
-  }  
+  // if (mPubCloud.getNumSubscribers() == 0)
+  // {
+  //   return;
+  // }  
 
   int ptsCount = mMatResol.width * mMatResol.height;
 
@@ -3003,9 +2899,7 @@ void ZEDWrapperNodelet::publishPointCloud()
     sensor_msgs::PointCloud2Modifier modifier(*pointcloudMsg);
     modifier.setPointCloud2Fields(4, "x", 1, sensor_msgs::PointField::FLOAT32, "y", 1, sensor_msgs::PointField::FLOAT32,
                                   "z", 1, sensor_msgs::PointField::FLOAT32, "rgb", 1, sensor_msgs::PointField::FLOAT32);
-    // if (saveRosbags_) {
-    //     outBag_depthAndConfidence.write("/gt_box/zed2i/zed_node/point_cloud/cloud_registered", mPointCloudTime, *pointcloudMsg);
-    // }
+
   }
 
   // Data copy
@@ -3015,8 +2909,16 @@ void ZEDWrapperNodelet::publishPointCloud()
   // We can do a direct memcpy since data organization is the same
   memcpy(ptCloudPtr, (float*)cpu_cloud, 4 * ptsCount * sizeof(float));
 
+  // Nice to have but bloats the bag size incredibly
+  // if (saveRosbags_ && saveDepthRosbag_) {
+  //   {
+  //     std::lock_guard<std::mutex> lock(mDepthRosBagMutex);
+  //     outBag_depthAndConfidence.write("/boxi/zed2i/depth/point_cloud", mPointCloudTime, *pointcloudMsg);
+  //   }
+  // }
+
   // Pointcloud publishing
-  mPubCloud.publish(pointcloudMsg);
+  // mPubCloud.publish(pointcloudMsg);
 }
 
 void ZEDWrapperNodelet::callback_pubFusedPointCloud(const ros::TimerEvent& e)
@@ -3766,12 +3668,6 @@ void ZEDWrapperNodelet::pubVideoDepth()
 
     if (saveRosbags_){
       static int conf_seq = 0;
-
-      // if (flipImage_)
-      // {
-      //   confMapMsg->header.frame_id = mConfidenceOptFrameId + "_flipped";
-      // }
-      
 
       sensor_msgs::CompressedImage::Ptr rvlCompressedImage(new sensor_msgs::CompressedImage());
       rvlCompressedImage = encodeCompressedDepthImage(*confMapMsg, depthCompressionType_, mCamMaxDepth, 100.0, 0);
@@ -4746,7 +4642,7 @@ void ZEDWrapperNodelet::device_poll_thread_func()
       // <---- Camera Settings
 
       // ----> Point Cloud
-      if (!mDepthDisabled && cloudSubnumber > 0)
+      if (!mDepthDisabled && (cloudSubnumber ) > 0) //+ subsOverwride, removed since bloats bag
       {
         processPointcloud(mFrameTimestamp);
       }
@@ -6542,7 +6438,11 @@ sensor_msgs::CompressedImage::Ptr ZEDWrapperNodelet::encodeCompressedDepthImage(
 
     if (flipImage_)
     {
-      cv::flip(cv_ptr->image, cv_ptr->image, -1);
+      cv::Point2f center(cv_ptr->image.cols / 2.0F, cv_ptr->image.rows / 2.0F);
+      cv::Mat rot_mat = cv::getRotationMatrix2D(center, 180.0, 1.0);
+      
+      // Rotate the image (result will be stored back in image)
+      cv::warpAffine(cv_ptr->image, cv_ptr->image, rot_mat, cv_ptr->image.size());
     }
 
     const cv::Mat& depthImg = cv_ptr->image;
