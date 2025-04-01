@@ -39,7 +39,7 @@ depth:
     depth_confidence:           10                         
     depth_texture_conf:         100                             
     min_depth:                  0.3
-    max_depth:                  10.0            # Max: 40.0
+    max_depth:                  15.0            # Max: 40.0
 
 mapping:
     mapping_enabled:            false

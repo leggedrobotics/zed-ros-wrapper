@@ -266,6 +266,9 @@ protected:
   void publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat img, image_transport::CameraPublisher& pubImg,
                     sensor_msgs::CameraInfoPtr camInfoMsg, std::string imgFrameId, ros::Time t, std::string saveStopicName ="", int seqNum = 0);
 
+
+  void decompressAndSave(const std::vector<uchar>& compressedData, const std::string& compressionType_);
+
   /*! \brief Publish a sl::Mat depth image with a ros Publisher
    * \param imgMsgPtr : the depth image topic message to publish
    * \param depth : the depth image to publish

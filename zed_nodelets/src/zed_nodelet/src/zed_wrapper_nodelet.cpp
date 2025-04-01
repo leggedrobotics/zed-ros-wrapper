@@ -2614,6 +2614,33 @@ void ZEDWrapperNodelet::publishStaticImuFrame()
   mStaticImuFramePublished = true;
 }
 
+void ZEDWrapperNodelet::decompressAndSave(const std::vector<uchar>& compressedData, const std::string& compressionType_) {
+  // Decompress the image from memory
+  cv::Mat decompressedImage = cv::imdecode(compressedData, cv::IMREAD_COLOR);
+  if (decompressedImage.empty()) {
+      std::cerr << "Decompression failed!" << std::endl;
+      return;
+  }
+
+  // Determine the correct file extension and local output path
+  std::string outputPath;
+  if (compressionType_ == "png") {
+      outputPath = "output.png";  // Local path for PNG
+  } else if (compressionType_ == "jpeg" || compressionType_ == "jpg") {
+      outputPath = "output.jpg";  // Local path for JPEG
+  } else {
+      std::cerr << "Unsupported compression type: " << compressionType_ << std::endl;
+      return;
+  }
+
+  // Write the decompressed image to the local path
+  if (!cv::imwrite(outputPath, decompressedImage)) {
+      std::cerr << "Failed to write the image to " << outputPath << std::endl;
+  } else {
+      std::cout << "Image successfully saved to " << outputPath << std::endl;
+  }
+}
+
 void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat img,
                                      image_transport::CameraPublisher& pubImg, sensor_msgs::CameraInfoPtr camInfoMsg,
                                      std::string imgFrameId, ros::Time t, std::string saveName, int seqNum){
@@ -2633,10 +2660,10 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
     {
       sensor_msgs::CompressedImage compressedImage;
       compressedImage.header = imgMsgPtr->header;
-      compressedImage.format = sensor_msgs::image_encodings::RGB8;
+      compressedImage.format = sensor_msgs::image_encodings::BGR8;
 
       // Directly share the image data to avoid copies
-      // cv_bridge::CvImageConstPtr cvImagePtr = cv_bridge::toCvShare(imgMsgPtr, sensor_msgs::image_encodings::RGB8);
+      // cv_bridge::CvImageConstPtr cvImagePtr = cv_bridge::toCvShare(imgMsgPtr, sensor_msgs::image_encodings::BGR8);
 
       // Check if the image is empty
       if (imgMsgPtr->data.empty() || imgMsgPtr->height == 0 || imgMsgPtr->width == 0) {
@@ -2644,14 +2671,12 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
         return;
       }
 
-      cv_bridge::CvImagePtr cvImagePtr = cv_bridge::toCvCopy(imgMsgPtr, sensor_msgs::image_encodings::RGB8);
+      cv_bridge::CvImagePtr cvImagePtr = cv_bridge::toCvCopy(imgMsgPtr, sensor_msgs::image_encodings::BGR8);
 
       if (flipImage_)
       {
         cv::Point2f center(cvImagePtr->image.cols / 2.0F, cvImagePtr->image.rows / 2.0F);
         cv::Mat rot_mat = cv::getRotationMatrix2D(center, 180.0, 1.0);
-        
-        // Rotate the image (result will be stored back in image)
         cv::warpAffine(cvImagePtr->image, cvImagePtr->image, rot_mat, cvImagePtr->image.size());
       
       }
@@ -2659,19 +2684,21 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
       if (compressionType_ == "png")
       {
         // PNG compression level, 9 == full , 0  == none
-        compressedImage.format += ";png compressed rgb8";
+        compressedImage.format += ";png compressed bgr8";
         std::vector<int> param = {cv::IMWRITE_PNG_COMPRESSION, 0};
         cv::imencode(".png", cvImagePtr->image, compressedImage.data, param);
+        // decompressAndSave(compressedImage.data, "png");
       }
       else if ((compressionType_ == "jpeg") || (compressionType_ == "jpg"))
       {
-        compressedImage.format += ";jpeg compressed rgb8";
-        std::vector<int> param = {cv::IMWRITE_JPEG_QUALITY, 100};
+        compressedImage.format += ";jpg compressed bgr8";
+        std::vector<int> param = {cv::IMWRITE_JPEG_QUALITY, 95};
         cv::imencode(".jpg", cvImagePtr->image, compressedImage.data, param);
+        // decompressAndSave(compressedImage.data, "jpeg");
       }
       else
       {
-        NODELET_ERROR("UNDEFINED COMPRESSION TYPE. Please set 'compressionType' parameter to 'png' or 'jpeg'");
+        NODELET_ERROR("UNDEFINED COMPRESSION TYPE. Please set 'compressionType' parameter to 'png' or 'jpg'");
       }
       if (saveUnrectified_)
       {
@@ -6440,8 +6467,6 @@ sensor_msgs::CompressedImage::Ptr ZEDWrapperNodelet::encodeCompressedDepthImage(
     {
       cv::Point2f center(cv_ptr->image.cols / 2.0F, cv_ptr->image.rows / 2.0F);
       cv::Mat rot_mat = cv::getRotationMatrix2D(center, 180.0, 1.0);
-      
-      // Rotate the image (result will be stored back in image)
       cv::warpAffine(cv_ptr->image, cv_ptr->image, rot_mat, cv_ptr->image.size());
     }
 
