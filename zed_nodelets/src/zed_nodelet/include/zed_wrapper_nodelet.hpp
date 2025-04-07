@@ -264,8 +264,8 @@ protected:
    * \param t : the ros::Time to stamp the image
    */
   void publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat img, image_transport::CameraPublisher& pubImg,
-                    sensor_msgs::CameraInfoPtr camInfoMsg, std::string imgFrameId, ros::Time t, std::string saveStopicName ="", int seqNum = 0);
-
+                    sensor_msgs::CameraInfoPtr camInfoMsg, std::string imgFrameId, ros::Time t,
+                    std::string saveStopicName = "", int seqNum = 0);
 
   void decompressAndSave(const std::vector<uchar>& compressedData, const std::string& compressionType_);
 
@@ -283,15 +283,12 @@ protected:
    */
   void publishPointCloud();
 
-  int compressRVL(const uint16_t * input, unsigned char * output, int numPixels);
+  int compressRVL(const uint16_t* input, unsigned char* output, int numPixels);
   void encodeVLE(int value);
 
-
- sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(
-     const sensor_msgs::Image& message,
-     const std::string& compression_format,
-     double depth_max, double depth_quantization, int png_level);
-
+  sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_msgs::Image& message,
+                                                               const std::string& compression_format, double depth_max,
+                                                               double depth_quantization, int png_level);
 
   /*! \brief Publish a fused pointCloud with a ros Publisher
    */
@@ -650,8 +647,8 @@ private:
   std::string mCloudFrameId;
   std::string mPointCloudFrameId;
 
-  int *buffer_;
-  int *pBuffer_;
+  int* buffer_;
+  int* pBuffer_;
   int word_;
   int nibblesWritten_;
 
