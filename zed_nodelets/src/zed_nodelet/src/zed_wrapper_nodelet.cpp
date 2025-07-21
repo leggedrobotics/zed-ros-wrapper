@@ -2818,14 +2818,38 @@ void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat de
 
   if (saveRosbags_)
   {
-    sensor_msgs::CompressedImage::Ptr rvlCompressedImage(new sensor_msgs::CompressedImage());
-    // Max depth , quantization, png level
-    rvlCompressedImage = encodeCompressedDepthImage(*imgMsgPtr, depthCompressionType_, mCamMaxDepth, 100.0, 0);
-    rvlCompressedImage->header = imgMsgPtr->header;
+    // Use OpenCV to encode the depth image as PNG
+    sensor_msgs::CompressedImage pngCompressedImage;
+    pngCompressedImage.header = imgMsgPtr->header;
+    pngCompressedImage.format = "16UC1_compressed_png";
+
+    // Convert ROS image message to OpenCV image
+    cv_bridge::CvImageConstPtr cv_ptr;
+    try {
+      cv_ptr = cv_bridge::toCvShare(imgMsgPtr, sensor_msgs::image_encodings::TYPE_32FC1);
+    } catch (cv_bridge::Exception& e) {
+      NODELET_ERROR_STREAM("cv_bridge exception: " << e.what());
+      return;
+    }
+
+    cv::Mat depthImage = cv_ptr->image;
+    if (flipImage_)
+    {
+      cv::Point2f center(depthImage.cols / 2.0F, depthImage.rows / 2.0F);
+      cv::Mat rot_mat = cv::getRotationMatrix2D(center, 180.0, 1.0);
+      cv::warpAffine(depthImage, depthImage, rot_mat, depthImage.size());
+    }
+
+    // Convert float32 depth to 16UC1 for PNG compression (scale to millimeters)
+    cv::Mat depth16u;
+    depthImage.convertTo(depth16u, CV_16UC1, 1000.0); // meters to millimeters
+
+    static std::vector<int> params = {cv::IMWRITE_PNG_COMPRESSION, 5}; // 0 = no compression, 9 = max
+    cv::imencode(".png", depth16u, pngCompressedImage.data, params);
 
     {
       std::lock_guard<std::mutex> lock(mDepthRosBagMutex);
-      outBag_depthAndConfidence.write(topicNames_.depth, rvlCompressedImage->header.stamp, *rvlCompressedImage);
+      outBag_depthAndConfidence.write(topicNames_.depth, pngCompressedImage.header.stamp, pngCompressedImage);
       outBag_depthAndConfidence.write(topicNames_.depth_cam_info, mDepthCamInfoMsg->header.stamp, *mDepthCamInfoMsg);
     }
   }
@@ -3721,17 +3745,52 @@ void ZEDWrapperNodelet::pubVideoDepth()
     {
       static int conf_seq = 0;
 
-      sensor_msgs::CompressedImage::Ptr rvlCompressedImage(new sensor_msgs::CompressedImage());
-      rvlCompressedImage = encodeCompressedDepthImage(*confMapMsg, depthCompressionType_, mCamMaxDepth, 100.0, 0);
-      rvlCompressedImage->header = confMapMsg->header;
-      {
-        if (saveRosbags_)
-        {
-          std::lock_guard<std::mutex> lock(mDepthRosBagMutex);
-          outBag_depthAndConfidence.write(topicNames_.confidence, rvlCompressedImage->header.stamp,
-                                          *rvlCompressedImage);
-        }
+      // Directly encode the confidence map to PNG without unnecessary conversions
+      sensor_msgs::CompressedImage pngCompressedConfImage;
+      pngCompressedConfImage.header = confMapMsg->header;
+      pngCompressedConfImage.format = "16UC1_compressed_png";  // Custom format for clarity
+
+      // Use cv_bridge only for header and pointer, avoid copy if possible
+      cv_bridge::CvImageConstPtr conf_cv_ptr;
+      try {
+        conf_cv_ptr = cv_bridge::toCvShare(confMapMsg, sensor_msgs::image_encodings::TYPE_32FC1);
+      } catch (cv_bridge::Exception& e) {
+        NODELET_ERROR_STREAM("cv_bridge exception: " << e.what());
+        return;
       }
+
+      cv::Mat confImage = conf_cv_ptr->image;
+      if (flipImage_)
+      {
+        cv::Point2f center(confImage.cols / 2.0F, confImage.rows / 2.0F);
+        cv::Mat rot_mat = cv::getRotationMatrix2D(center, 180.0, 1.0);
+        cv::warpAffine(confImage, confImage, rot_mat, confImage.size());
+      }
+
+      // Convert float32 confidence to 16UC1 for PNG compression (scale as needed)
+      cv::Mat conf16u;
+      confImage.convertTo(conf16u, CV_16UC1, 1000.0); // scale factor can be adjusted if needed
+
+      static std::vector<int> conf_params = {cv::IMWRITE_PNG_COMPRESSION, 5};
+      cv::imencode(".png", conf16u, pngCompressedConfImage.data, conf_params);
+
+      {
+        std::lock_guard<std::mutex> lock(mDepthRosBagMutex);
+        outBag_depthAndConfidence.write(topicNames_.confidence, pngCompressedConfImage.header.stamp, pngCompressedConfImage);
+      }
+
+      // sensor_msgs::CompressedImage::Ptr rvlCompressedImage(new sensor_msgs::CompressedImage());
+      // rvlCompressedImage = encodeCompressedDepthImage(*confMapMsg, depthCompressionType_, mCamMaxDepth, 100.0, 0);
+      // rvlCompressedImage->header = confMapMsg->header;
+      // {
+      //   if (saveRosbags_)
+      //   {
+      //     std::lock_guard<std::mutex> lock(mDepthRosBagMutex);
+      //     outBag_depthAndConfidence.write(topicNames_.confidence, rvlCompressedImage->header.stamp,
+      //                                     *rvlCompressedImage);
+      //   }
+      // }
+
       conf_seq++;
     }
 
