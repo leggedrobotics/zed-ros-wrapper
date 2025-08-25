@@ -26,6 +26,8 @@ general:
     camera_name:                zed2i                           # A name for the camera (can be different from camera model and node name and can be overwritten by the launch file)
     zed_id:                     0
     serial_number:              0
+    enable_offset_time:         false                           # Enable to offset the time of the camera messages
+    offset_time_value:          0                               # Offset time in seconds to apply to the camera
     gpu_id:                     -1
     base_frame:                 'zed_base_link'               # must be equal to the frame_id used in the URDF file
     verbose:                    false                           # Enable info message by the ZED SDK

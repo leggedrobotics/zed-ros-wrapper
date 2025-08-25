@@ -701,6 +701,8 @@ private:
   bool flipImage_ = false;
   bool saveUnrectified_ = false;
   bool usePublicNamespace_ = false;
+  bool offsetTime_ = false;
+  double mOffsetTimeSec_ = 0.0;
   bool saveRGBRosbag_ = false;
   bool saveDepthRosbag_ = false;
   bool savePropRosbag_ = false;

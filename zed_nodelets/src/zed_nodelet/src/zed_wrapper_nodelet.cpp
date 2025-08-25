@@ -1396,6 +1396,13 @@ void ZEDWrapperNodelet::readParameters()
   mNhNs.getParam("general/flip_images", flipImage_);
   mNhNs.getParam("general/save_unrectified", saveUnrectified_);
   mNhNs.getParam("general/use_public_namespace", usePublicNamespace_);
+  mNhNs.getParam("general/enable_offset_time", offsetTime_);
+
+  double mOffsetTimeSec1_ = 0.0;
+  mNhNs.getParam("general/offset_time_value_1", mOffsetTimeSec1_);
+  double mOffsetTimeSec2_ = 0.0;
+  mNhNs.getParam("general/offset_time_value_2", mOffsetTimeSec2_);
+
   mNhNs.getParam("general/save_image_bag", saveRGBRosbag_);
   mNhNs.getParam("general/save_depth_bag", saveDepthRosbag_);
   mNhNs.getParam("general/save_prop_bag", savePropRosbag_);
@@ -1455,6 +1462,17 @@ void ZEDWrapperNodelet::readParameters()
     topicNames_.baro = base + "baro/pressure";
     topicNames_.mag = base + "imu/magnetic_field";
     topicNames_.temp = base + "imu/temperature";
+  }
+
+  NODELET_INFO_STREAM(" * Time offsetting\t\t-> " << (offsetTime_ ? "\033[1;32mENABLED\033[0m" : "DISABLED"));
+  if (offsetTime_)
+  {
+    mOffsetTimeSec_ = mOffsetTimeSec1_ - mOffsetTimeSec2_;
+    std::ostringstream ss_prec;
+    ss_prec.setf(std::ios::fixed, std::ios::floatfield);
+    ss_prec.precision(9);
+    ss_prec << mOffsetTimeSec_;
+    std::cout << "\033[34mOffset time: " << ss_prec.str() << " seconds\033[0m" << std::endl;
   }
 
   NODELET_INFO_STREAM(" * Image Flipping\t\t-> " << (flipImage_ ? "\033[1;32mENABLED\033[0m" : "DISABLED"));
@@ -2509,6 +2527,12 @@ void ZEDWrapperNodelet::publishOdom(tf2::Transform odom2baseTransf, sl::Pose& sl
     if (saveRosbags_ && savePropRosbag_)
     {
       std::lock_guard<std::mutex> lock(mPropRosBagMutex);
+      if (offsetTime_ && (mOffsetTimeSec_ > 0))
+      {
+        // If the offset time is set, we need to adjust the timestamp
+        odomMsg->header.stamp = odomMsg->header.stamp + ros::Duration(mOffsetTimeSec_);
+        // odomMsg->header.stamp = ros::Time(odomMsg->header.stamp.toSec() * 10.0);
+      }
       outBag_proprioceptive.write(topicNames_.odomTopic, odomMsg->header.stamp, *odomMsg);
     }
     if (!saveRosbags_)
@@ -2568,6 +2592,12 @@ void ZEDWrapperNodelet::publishPose()
     if (saveRosbags_ && savePropRosbag_)
     {
       std::lock_guard<std::mutex> lock(mPropRosBagMutex);
+      if (offsetTime_ && (mOffsetTimeSec_ > 0))
+      {
+        // If the offset time is set, we need to adjust the timestamp
+        poseCov->header.stamp = poseCov->header.stamp + ros::Duration(mOffsetTimeSec_);
+        // poseCov->header.stamp = ros::Time(poseCov->header.stamp.toSec() * 10.0);
+      }
       outBag_proprioceptive.write(topicNames_.mapTopic, poseCov->header.stamp, *poseCov);
     }
   }
@@ -2657,6 +2687,11 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
 {
   sl_tools::imageToROSmsg(imgMsgPtr, img, imgFrameId, t);
 
+  // ROS_WARN_STREAM("publishImage timestamp: " << t);
+  // ros::Time timeDiff;
+  // timeDiff.fromSec((t.toSec() + ros::Duration(mOffsetTimeSec_).toSec()));
+  // ROS_WARN_STREAM("publishImage timeDiff: " << timeDiff);
+
   camInfoMsg->header.stamp = t;
   imgMsgPtr->header.stamp = t;
 
@@ -2694,7 +2729,7 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
       {
         // PNG compression level, 9 == full , 0  == none
         compressedImage.format += ";png compressed bgr8";
-        std::vector<int> param = { cv::IMWRITE_PNG_COMPRESSION, 0 };
+        std::vector<int> param = { cv::IMWRITE_PNG_COMPRESSION, 4 };
         cv::imencode(".png", cvImagePtr->image, compressedImage.data, param);
         // decompressAndSave(compressedImage.data, "png");
       }
@@ -2730,6 +2765,15 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
         }
 
         std::lock_guard<std::mutex> lock(mImageRosBagMutex);
+        if (offsetTime_ && (mOffsetTimeSec_ > 0))
+        {
+          // If the offset time is set, we need to adjust the timestamp
+          compressedImage.header.stamp = compressedImage.header.stamp + ros::Duration(mOffsetTimeSec_);
+          camInfoMsg->header.stamp = camInfoMsg->header.stamp + ros::Duration(mOffsetTimeSec_);
+          // compressedImage.header.stamp = ros::Time(compressedImage.header.stamp.toSec() * 10.0);
+          // camInfoMsg->header.stamp = ros::Time(camInfoMsg->header.stamp.toSec() * 10.0);
+
+        }
         outBag_images.write(imageTopicName, compressedImage.header.stamp, compressedImage);
         outBag_images.write(camInfoTopicName, camInfoMsg->header.stamp, *camInfoMsg);
       }
@@ -2754,6 +2798,14 @@ void ZEDWrapperNodelet::publishImage(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat im
         }
 
         std::lock_guard<std::mutex> lock(mImageRosBagMutex);
+        if (offsetTime_ && (mOffsetTimeSec_ > 0))
+        {
+          // If the offset time is set, we need to adjust the timestamp
+          compressedImage.header.stamp = compressedImage.header.stamp + ros::Duration(mOffsetTimeSec_);
+          camInfoMsg->header.stamp = camInfoMsg->header.stamp + ros::Duration(mOffsetTimeSec_);
+          // compressedImage.header.stamp = ros::Time(compressedImage.header.stamp.toSec() * 10.0);
+          // camInfoMsg->header.stamp = ros::Time(camInfoMsg->header.stamp.toSec() * 10.0);
+        }
         outBag_images.write(imageTopicName, compressedImage.header.stamp, compressedImage);
         outBag_images.write(camInfoTopicName, camInfoMsg->header.stamp, *camInfoMsg);
       }
@@ -2846,6 +2898,50 @@ void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat de
 
     static std::vector<int> params = {cv::IMWRITE_PNG_COMPRESSION, 5}; // 0 = no compression, 9 = max
     cv::imencode(".png", depth16u, pngCompressedImage.data, params);
+
+
+    // Convert ZED 32FC1 depth (meters) to 16UC1 (millimeters).
+    // // Requirements:
+    // //  - 0 == invalid / out of range
+    // //  - 15.0 m must become exactly 15000 (if within max depth)
+    // //  - Use camera max depth (mCamMaxDepth) if available, else default 15 m cap
+    // cv_bridge::CvImageConstPtr cv_ptr =
+    //   cv_bridge::toCvShare(imgMsgPtr, sensor_msgs::image_encodings::TYPE_32FC1);
+    // const cv::Mat& depth_m = cv_ptr->image;  // float meters
+
+    // // Determine usable max depth (meters)
+    // float maxDepthM = (mCamMaxDepth > 0.f) ? static_cast<float>(mCamMaxDepth) : 15.0f;
+    // // We only care up to 15 m (or configured max); anything beyond set to 0
+    // // Prepare working copy
+    // cv::Mat work = depth_m.clone();
+
+    // // Replace NaNs with 0 (invalid)
+    // cv::patchNaNs(work, 0.f);
+
+    // // Invalidate non-positive
+    // work.setTo(0.f, work <= 0.f);
+
+    // // Invalidate beyond max depth
+    // work.setTo(0.f, work > maxDepthM);
+
+    // // Convert to millimeters (exact scaling 1e3). Values already filtered above.
+    // work *= 1000.f;
+
+    // // Round to nearest integer millimeter (adding 0.5 then truncating)
+    // // Only positive values need rounding; zeros remain zeros.
+    // work += 0.5f;
+
+    // // Final 16-bit image (0..maxDepthM*1000, here <= 15000)
+    // cv::Mat depth_mm_u16;
+    // work.convertTo(depth_mm_u16, CV_16U, 1.0);  // direct cast (already in mm)
+
+
+    // Encode as 16UC1 PNG
+    // rvlCompressedImage->format = "16UC1_compressed_png";
+    // std::vector<int> param = { cv::IMWRITE_PNG_COMPRESSION, 4 }; // 9=max compression
+    // cv::imencode(".png", depth_mm_u16, rvlCompressedImage->data, param);
+
+
 
     {
       std::lock_guard<std::mutex> lock(mDepthRosBagMutex);
@@ -3741,7 +3837,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
     sensor_msgs::ImagePtr confMapMsg = boost::make_shared<sensor_msgs::Image>();
     sl_tools::imageToROSmsg(confMapMsg, mat_conf, mConfidenceOptFrameId, stamp);
 
-    if (saveRosbags_)
+    if (saveRosbags_ && saveDepthRosbag_)
     {
       static int conf_seq = 0;
 
@@ -4065,6 +4161,14 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     if (saveRosbags_ && savePropRosbag_)
     {
       std::lock_guard<std::mutex> lock(mPropRosBagMutex);
+
+      if (offsetTime_ && (mOffsetTimeSec_ > 0))
+      {
+        // If the offset time is set, we need to adjust the timestamp
+        imuTempMsg->header.stamp = imuTempMsg->header.stamp + ros::Duration(mOffsetTimeSec_);
+        // imuTempMsg->header.stamp = ros::Time(imuTempMsg->header.stamp.toSec() * 10.0);
+      }
+
       outBag_proprioceptive.write(topicNames_.temp, imuTempMsg->header.stamp, *imuTempMsg);
     }
 
@@ -4105,6 +4209,14 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
       if (saveRosbags_ && savePropRosbag_)
       {
         std::lock_guard<std::mutex> lock(mPropRosBagMutex);
+
+        if (offsetTime_ && (mOffsetTimeSec_ > 0))
+        {
+          // If the offset time is set, we need to adjust the timestamp
+          pressMsg->header.stamp = pressMsg->header.stamp + ros::Duration(mOffsetTimeSec_);
+          // pressMsg->header.stamp = ros::Time(pressMsg->header.stamp.toSec() * 10.0);
+
+        }
         outBag_proprioceptive.write(topicNames_.baro, pressMsg->header.stamp, *pressMsg);
       }
 
@@ -4204,6 +4316,12 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
       if (saveRosbags_ && savePropRosbag_)
       {
         std::lock_guard<std::mutex> lock(mPropRosBagMutex);
+        if (offsetTime_ && (mOffsetTimeSec_ > 0))
+        {
+          // If the offset time is set, we need to adjust the timestamp
+          magMsg->header.stamp = magMsg->header.stamp + ros::Duration(mOffsetTimeSec_);
+          // magMsg->header.stamp = ros::Time(magMsg->header.stamp.toSec() * 10.0);
+        }
         outBag_proprioceptive.write(topicNames_.mag, magMsg->header.stamp, *magMsg);
       }
 
@@ -4293,6 +4411,12 @@ void ZEDWrapperNodelet::publishSensData(ros::Time t)
     if (saveRosbags_ && savePropRosbag_)
     {
       std::lock_guard<std::mutex> lock(mPropRosBagMutex);
+      if (offsetTime_ && (mOffsetTimeSec_ > 0))
+      {
+        // If the offset time is set, we need to adjust the timestamp
+        imuMsg->header.stamp = imuMsg->header.stamp + ros::Duration(mOffsetTimeSec_);
+        // imuMsg->header.stamp = ros::Time(imuMsg->header.stamp.toSec() * 10.0);
+      }
       outBag_proprioceptive.write(topicNames_.imu, imuMsg->header.stamp, *imuMsg);
     }
     else
@@ -6338,6 +6462,13 @@ void ZEDWrapperNodelet::publishOdomTF(ros::Time t)
   geometry_msgs::TransformStamped transformStamped;
   transformStamped.header.stamp = t;
 
+  if (offsetTime_ && (mOffsetTimeSec_ > 0))
+  {
+    // If the offset time is set, we need to adjust the timestamp
+    transformStamped.header.stamp = transformStamped.header.stamp + ros::Duration(mOffsetTimeSec_);
+    // transformStamped.header.stamp = ros::Time(transformStamped.header.stamp.toSec() * 10.0);
+  }
+
   // NODELET_WARN_STREAM("mBaseFrameId: " << mBaseFrameId);
 
   transformStamped.header.frame_id = mOdomFrameId;
@@ -6380,6 +6511,14 @@ void ZEDWrapperNodelet::publishOdomTF(ros::Time t)
 
     geometry_msgs::TransformStamped transformStampedMap;
     transformStampedMap.header.stamp = t;
+
+    if (offsetTime_ && (mOffsetTimeSec_ > 0))
+    {
+      // If the offset time is set, we need to adjust the timestamp
+      transformStampedMap.header.stamp = transformStampedMap.header.stamp + ros::Duration(mOffsetTimeSec_);
+      // transformStampedMap.header.stamp = ros::Time(transformStampedMap.header.stamp.toSec() * 10.0);
+    }
+
     transformStampedMap.transform = inverted_map_transform_msg;
     transformStampedMap.header.frame_id = "zed2i_base_link";
     transformStampedMap.child_frame_id = mMapFrameId;
@@ -6389,7 +6528,7 @@ void ZEDWrapperNodelet::publishOdomTF(ros::Time t)
   if (saveRosbags_ && saveTFRosbag_)
   {
     std::lock_guard<std::mutex> lock(mTFRosBagMutex);
-    outBag_tf.write("/tf", t, myTf);
+    outBag_tf.write("/tf", transformStamped.header.stamp, myTf);
   }
 
   // Publish transformation

@@ -22,6 +22,10 @@ general:
     flip_images:                true                            # Flip images horizontally
     save_unrectified:           true                            # Save unrectified images
     use_public_namespace:       true                            # Use public namespace for topics
+    enable_offset_time:         false                            # Enable to offset the time of the camera messages
+    offset_time_value_1:          1730732929.40019080             # Offset time in seconds to apply to the camera messages
+    offset_time_value_2:           315965254.65634900
+
 
 pos_tracking:
     pos_tracking_enabled:       true
