@@ -2887,6 +2887,13 @@ void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat de
     cv::Mat depthImage = cv_ptr->image;
     if (flipImage_)
     {
+      std::string flippedFrameId = mDepthOptFrameId;
+      size_t pos = flippedFrameId.find("left");
+      if (pos != std::string::npos) {
+        flippedFrameId.replace(pos, 4, "right");
+      }
+      mDepthCamInfoMsg->header.frame_id = flippedFrameId;
+      pngCompressedImage.header.frame_id = flippedFrameId;
       cv::Point2f center(depthImage.cols / 2.0F, depthImage.rows / 2.0F);
       cv::Mat rot_mat = cv::getRotationMatrix2D(center, 180.0, 1.0);
       cv::warpAffine(depthImage, depthImage, rot_mat, depthImage.size());
@@ -2935,13 +2942,10 @@ void ZEDWrapperNodelet::publishDepth(sensor_msgs::ImagePtr imgMsgPtr, sl::Mat de
     // cv::Mat depth_mm_u16;
     // work.convertTo(depth_mm_u16, CV_16U, 1.0);  // direct cast (already in mm)
 
-
     // Encode as 16UC1 PNG
     // rvlCompressedImage->format = "16UC1_compressed_png";
     // std::vector<int> param = { cv::IMWRITE_PNG_COMPRESSION, 4 }; // 9=max compression
     // cv::imencode(".png", depth_mm_u16, rvlCompressedImage->data, param);
-
-
 
     {
       std::lock_guard<std::mutex> lock(mDepthRosBagMutex);
@@ -3259,7 +3263,7 @@ void ZEDWrapperNodelet::fillCamInfo(sl::Camera& zed, sensor_msgs::CameraInfoPtr 
   leftCamInfoMsg->P[6] = static_cast<double>(zedParam.left_cam.cy);
   leftCamInfoMsg->P[10] = 1.0;
   // http://docs.ros.org/api/sensor_msgs/html/msg/CameraInfo.html
-  rightCamInfoMsg->P[3] = static_cast<double>(-1 * zedParam.left_cam.fx * baseline);
+  // rightCamInfoMsg->P[3] = static_cast<double>(-1 * zedParam.left_cam.fx * baseline);y
   rightCamInfoMsg->P[0] = static_cast<double>(zedParam.right_cam.fx);
   rightCamInfoMsg->P[2] = static_cast<double>(zedParam.right_cam.cx);
   rightCamInfoMsg->P[5] = static_cast<double>(zedParam.right_cam.fy);
@@ -3709,14 +3713,58 @@ void ZEDWrapperNodelet::pubVideoDepth()
   lastZedTs = grab_ts;
   // <---- Check if a grab has been done before publishing the same images
 
+  std::string leftTopicPrefix = "/zed2i/zed_node/left";
+  std::string rightTopicPrefix = "/zed2i/zed_node/right";
+
+  if(flipImage_){
+
+      std::string flippedLeftFrameId = mLeftCamOptFrameId;
+      size_t pos = flippedLeftFrameId.find("left");
+      if (pos != std::string::npos) {
+        flippedLeftFrameId.replace(pos, 4, "right");
+      }
+      mLeftCamOptFrameId = flippedLeftFrameId;
+
+
+      // change the header frame of mLeftCamInfoMsg as well
+      mLeftCamInfoMsg->header.frame_id = mLeftCamOptFrameId;
+
+      // Similarly change leftTopicPrefix from left to right
+      size_t posLeftTopic = leftTopicPrefix.find("left");
+      if (posLeftTopic != std::string::npos) {
+        leftTopicPrefix.replace(posLeftTopic, 4, "right");
+      }
+
+      std::string flippedRightFrameId = mRightCamOptFrameId;
+      size_t posRight = flippedRightFrameId.find("right");
+      if (posRight != std::string::npos) {
+        flippedRightFrameId.replace(posRight, 5, "left");
+      }
+      mRightCamOptFrameId = flippedRightFrameId;
+
+      mRightCamInfoMsg->header.frame_id = mRightCamOptFrameId;
+
+      // Similarly change rightTopicPrefix from right to left
+      size_t posRightTopic = rightTopicPrefix.find("right");
+      if (posRightTopic != std::string::npos) {
+        rightTopicPrefix.replace(posRightTopic, 5, "left");
+      }
+
+  }
+
   // Publish the left = rgb image if someone has subscribed to
   if ((leftSubnumber + subsOverwride > 0) && (!saveUnrectified_) && (saveRGBRosbag_))
   {
     static int left_seq = 0;
     sensor_msgs::ImagePtr leftImgMsg = boost::make_shared<sensor_msgs::Image>();
-    publishImage(leftImgMsg, mat_left, mPubLeft, mLeftCamInfoMsg, mLeftCamOptFrameId, stamp, "/zed2i/zed_node/left",
+    publishImage(leftImgMsg, mat_left, mPubLeft, mLeftCamInfoMsg, mLeftCamOptFrameId, stamp, leftTopicPrefix,
                  left_seq);
     left_seq++;
+
+    // print mLeftCamOptFrameId and  leftTopicPrefix
+    // NODELET_INFO_STREAM("mLeftCamOptFrameId: " << mLeftCamOptFrameId);
+    // NODELET_INFO_STREAM("leftTopicPrefix: " << leftTopicPrefix);
+
   }
   // Publish the left_raw = rgb_raw image if someone has subscribed to
   if ((leftRawSubnumber + subsOverwride > 0) && (saveUnrectified_) && (saveRGBRosbag_))
@@ -3724,7 +3772,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
     static int left_seq = 0;
     sensor_msgs::ImagePtr rawLeftImgMsg = boost::make_shared<sensor_msgs::Image>();
     publishImage(rawLeftImgMsg, mat_left_raw, mPubRawLeft, mLeftCamInfoRawMsg, mLeftCamOptFrameId, stamp,
-                 "/zed2i/zed_node/left", left_seq);
+                 leftTopicPrefix, left_seq);
     left_seq++;
   }
 
@@ -3771,8 +3819,11 @@ void ZEDWrapperNodelet::pubVideoDepth()
     static int right_seq = 0;
     sensor_msgs::ImagePtr rightImgMsg = boost::make_shared<sensor_msgs::Image>();
     publishImage(rightImgMsg, mat_right, mPubRight, mRightCamInfoMsg, mRightCamOptFrameId, stamp,
-                 "/zed2i/zed_node/right", right_seq);
+                 rightTopicPrefix, right_seq);
     right_seq++;
+    // NODELET_INFO_STREAM("mRightCamOptFrameId: " << mRightCamOptFrameId);
+    // NODELET_INFO_STREAM("rightTopicPrefix: " << rightTopicPrefix);
+
   }
 
   // Publish the right raw image if someone has subscribed to
@@ -3781,7 +3832,7 @@ void ZEDWrapperNodelet::pubVideoDepth()
     static int right_seq = 0;
     sensor_msgs::ImagePtr rawRightImgMsg = boost::make_shared<sensor_msgs::Image>();
     publishImage(rawRightImgMsg, mat_right_raw, mPubRawRight, mRightCamInfoRawMsg, mRightCamOptFrameId, stamp,
-                 "/zed2i/zed_node/right", right_seq);
+                 rightTopicPrefix, right_seq);
     right_seq++;
   }
 
@@ -3858,6 +3909,12 @@ void ZEDWrapperNodelet::pubVideoDepth()
       cv::Mat confImage = conf_cv_ptr->image;
       if (flipImage_)
       {
+        std::string flippedConfFrameId = mConfidenceOptFrameId;
+        size_t pos = flippedConfFrameId.find("left");;
+        if (pos != std::string::npos) {
+          flippedConfFrameId.replace(pos, 4, "right");;
+        }
+        mConfidenceOptFrameId = flippedConfFrameId;
         cv::Point2f center(confImage.cols / 2.0F, confImage.rows / 2.0F);
         cv::Mat rot_mat = cv::getRotationMatrix2D(center, 180.0, 1.0);
         cv::warpAffine(confImage, confImage, rot_mat, confImage.size());
