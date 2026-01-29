@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<!--
+Copyright (c) 2023, STEREOLABS.
+
+All rights reserved.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+-->
+<launch>
+    <arg name="svo_file"             default="" /> <!-- <arg name="svo_file" default="path/to/svo/file.svo"> -->
+    <arg name="stream"               default="" /> <!-- <arg name="stream" default="<ip_address>:<port>"> -->
+
+    <arg name="node_name"            default="front_zed_node" />
+    
+    <!-- Camera Model and Name -->
+    <arg name="camera_model"         default="zedxm" />
+    <arg name="camera_name"          default="front_zed" />
+    <arg name="camera_id"            default="0" />
+
+    <!-- GPU ID -->
+    <arg name="gpu_id"                default="-1" />
+    
+    <!-- Camera base frame -->
+    <arg name="base_frame"           default="front_zed_camera_link" />
+
+    <node name="$(arg node_name)" pkg="zed_wrapper" type="zed_wrapper_node" output="screen" required="true"><!-- launch-prefix="valgrind" -->
+        <rosparam file="$(find zed_wrapper)/params/common.yaml" command="load" />
+        <rosparam file="$(find zed_wrapper)/params/$(arg camera_model).yaml" command="load" />
+
+        <!-- Camera name -->
+        <param name="general/camera_name"               value="$(arg camera_name)" />
+
+        <!-- Base frame -->
+        <param name="general/base_frame"                value="$(arg base_frame)" />
+
+        <!-- SVO file path -->
+        <param name="svo_file"                          value="$(arg svo_file)" />
+
+        <!-- Remote stream -->
+        <param name="stream"                            value="$(arg stream)" />
+
+        <!-- Camera ID -->
+        <param name="general/zed_id"                    value="$(arg camera_id)" />
+
+        <!-- GPU ID -->
+        <param name="general/gpu_id"                    value="$(arg gpu_id)" />
+    </node>
+</launch>
