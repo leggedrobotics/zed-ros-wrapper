@@ -20,7 +20,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <arg name="svo_file"             default="" /> <!-- <arg name="svo_file" default="path/to/svo/file.svo"> -->
     <arg name="stream"               default="" /> <!-- <arg name="stream" default="<ip_address>:<port>"> -->
 
-    <arg name="node_name"            default="front_zed_node" />
+    <arg name="node_name"            default="front_zed" />
     
     <!-- Camera Model and Name -->
     <arg name="camera_model"         default="zedxm" />
