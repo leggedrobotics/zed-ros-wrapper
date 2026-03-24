@@ -954,6 +954,11 @@ void ZEDWrapperNodelet::readPosTrkParams()
   {
     NODELET_INFO_STREAM("*** POSITIONAL TRACKING PARAMETERS ***");
 
+    // UGUR'S ADDITION:
+    mNhNs.getParam("pos_tracking/startup_delay_sec", mPosTrkStartupDelaySec);
+    NODELET_INFO_STREAM(" * PosTrk startup delay\t\t-> " << mPosTrkStartupDelaySec << " s");
+
+
     mNhNs.getParam("pos_tracking/pos_tracking_enabled", mPosTrackingEnabled);
     NODELET_INFO_STREAM(" * Positional tracking\t\t-> " << (mPosTrackingEnabled ? "ENABLED" : "DISABLED"));
 
@@ -967,9 +972,13 @@ void ZEDWrapperNodelet::readPosTrkParams()
     {
       mPosTrkMode = sl::POSITIONAL_TRACKING_MODE::GEN_2;
     }
+    else if (pos_trk_mode == "GEN_3")
+    {
+      mPosTrkMode = sl::POSITIONAL_TRACKING_MODE::GEN_3;
+    }
     else
     {
-      NODELET_WARN_STREAM("'pos_tracking/pos_tracking_mode' not valid ('" << pos_trk_mode
+      NODELET_WARN_STREAM("'pos_tracking/pos_tracking_mode' not validd ('" << pos_trk_mode
                                                                           << "'). Using default value.");
       mPosTrkMode = sl::POSITIONAL_TRACKING_MODE::GEN_2;
     }
@@ -2098,6 +2107,15 @@ void ZEDWrapperNodelet::stop_obj_detect()
 void ZEDWrapperNodelet::start_pos_tracking()
 {
   NODELET_INFO_STREAM("*** Starting Positional Tracking ***");
+
+  // UGUR'S ADDITION:
+  
+  if (mPosTrkStartupDelaySec > 0.0) 
+  {
+    NODELET_INFO_STREAM("Delaying positional tracking start by " << mPosTrkStartupDelaySec << " s");
+    std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(mPosTrkStartupDelaySec * 1000.0)));
+  }
+
 
   mPosTrackingReady = false;  // Useful to not publish wrong TF with IMU frame broadcasting
 

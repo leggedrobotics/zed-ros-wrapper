@@ -654,7 +654,8 @@ private:
   bool mCameraSelfCalib;
   bool mIsStatic = false;
   double mPosTrkMinDepth = 0.0;
-
+  // UGUR'S ADDITION
+  double mPosTrkStartupDelaySec = 10.0;
   // Flags
   bool mGrabActive = false;  // Indicate if camera grabbing is active (at least one topic subscribed)
   sl::ERROR_CODE mConnStatus;
