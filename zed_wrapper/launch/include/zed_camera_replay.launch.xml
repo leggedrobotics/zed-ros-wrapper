@@ -17,6 +17,9 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
 <launch>
+    <arg name="save_prop_bag" default="true" />
+    <arg name="save_tf_bag" default="true" />
+
     <!-- Camera Model and Name -->
     <arg name="camera_name"           default="zed" /> <!-- The name you want -->
     <arg name="camera_model"          default="zed" /> <!-- 'zed' or 'zedm' or 'zed2' -->
@@ -71,6 +74,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <rosparam file="$(find zed_wrapper)/params/$(arg camera_model).yaml" command="load" />
         <!-- Overwrite some of the parameters for replay sake. -->
         <rosparam file="$(find zed_wrapper)/params/replay.yaml" command="load" />
+        <param name="general/save_prop_bag" value="$(arg save_prop_bag)" />
+        <param name="general/save_tf_bag" value="$(arg save_tf_bag)" />
 
         <!-- Camera name -->
         <param name="general/camera_name"               value="$(arg camera_name)" />

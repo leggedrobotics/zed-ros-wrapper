@@ -16,10 +16,10 @@ general:
     skip_right_image:           false                           # Whether to skip the right image.
     skip_confidence_saving:     false                           # Skips confidence saving
     saved_image_compression_type: jpg                           # Compression type png or jpg. Not used if `save_grandtour_rosbags` is false
-    saved_depth_compression_type: rvl                           # Currently RVL is default and supported. Compression type png, rvl or jpg. Not used if `save_grandtour_rosbags` is false
+    saved_depth_compression_type: png                           # Grand Tour bags use plain 16-bit PNG: depth in mm, confidence in SDK units [1, 100].
     pub_downscale_factor:       1.0                             # rescale factor used to rescale image before publishing when 'pub_resolution' is 'CUSTOM'
     pub_frame_rate:             15.0                            # Pub level maxed-out but overridden when bag saving is enabled
-    flip_images:                false                            # Flip images horizontally
+    flip_images:                false                            # Legacy 180-degree image rotation and side swap; does not update calibration. Keep false for calibrated exports.
     save_unrectified:           false                            # Save unrectified images
     use_public_namespace:       true                            # Use public namespace for topics
     enable_offset_time:         false                            # Enable to offset the time of the camera messages

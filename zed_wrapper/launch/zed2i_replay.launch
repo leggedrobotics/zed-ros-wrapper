@@ -17,7 +17,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
 <launch>
-    <arg name="svo_file"             default="" /> <!-- <arg name="svo_file" default="path/to/svo/file.svo"> -->
+    <arg name="svo_file" default="" doc="Input SVO file; empty selects live or stream input" />
     <arg name="stream"               default="" /> <!-- <arg name="stream" default="<ip_address>:<port>"> -->
 
     <arg name="node_name"            default="zed_node" />
@@ -26,6 +26,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <arg name="base_frame"           default="zed_base_link" />
 
     <arg name="publish_urdf"         default="true" />
+    <arg name="save_prop_bag"        default="true" />
+    <arg name="save_tf_bag"          default="true" />
 
     <arg name="cam_pos_x"             default="0.0" /> <!-- Position respect to base frame (i.e. "base_link) -->
     <arg name="cam_pos_y"             default="0.0" /> <!-- Position respect to base frame (i.e. "base_link) -->
@@ -43,6 +45,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <arg name="camera_model"        value="$(arg camera_model)" />
             <arg name="base_frame"          value="$(arg base_frame)" />
             <arg name="publish_urdf"        value="$(arg publish_urdf)" />
+            <arg name="save_prop_bag"       value="$(arg save_prop_bag)" />
+            <arg name="save_tf_bag"         value="$(arg save_tf_bag)" />
             <arg name="cam_pos_x"           value="$(arg cam_pos_x)" />
             <arg name="cam_pos_y"           value="$(arg cam_pos_y)" />
             <arg name="cam_pos_z"           value="$(arg cam_pos_z)" />

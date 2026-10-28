@@ -1424,10 +1424,10 @@ void ZEDWrapperNodelet::readParameters()
     topicNames_.right_raw_cam_info = base + "right/camera_info";
     topicNames_.right_cam_info = base + "right/camera_info";
 
-    topicNames_.depth = base + "depth/depth_registered/compressedDepth";
+    topicNames_.depth = base + "depth/depth_registered/compressed";
     topicNames_.depth_cam_info = base + "depth/camera_info";
 
-    topicNames_.confidence = base + "confidence/confidence_map/compressedDepth";
+    topicNames_.confidence = base + "confidence/confidence_map/compressed";
 
     topicNames_.odomTopic = base + "odom";
     topicNames_.mapTopic = base + "map_pose";
@@ -1451,10 +1451,10 @@ void ZEDWrapperNodelet::readParameters()
     topicNames_.right_raw_cam_info = base + "right/camera_info";
     topicNames_.right_cam_info = base + "right/camera_info";
 
-    topicNames_.depth = base + "depth/image_raw/compressedDepth";
+    topicNames_.depth = base + "depth/image_raw/compressed";
     topicNames_.depth_cam_info = base + "depth/camera_info";
 
-    topicNames_.confidence = base + "confidence/image_raw/compressedDepth";
+    topicNames_.confidence = base + "confidence/image_raw/compressed";
 
     topicNames_.odomTopic = base + "odom";
     topicNames_.mapTopic = base + "map_pose";
@@ -3217,14 +3217,14 @@ void ZEDWrapperNodelet::fillCamInfo(sl::Camera& zed, sensor_msgs::CameraInfoPtr 
   rightCamInfoMsg->D.resize(5);
   leftCamInfoMsg->D[0] = zedParam.left_cam.disto[0];    // k1
   leftCamInfoMsg->D[1] = zedParam.left_cam.disto[1];    // k2
-  leftCamInfoMsg->D[2] = zedParam.left_cam.disto[4];    // k3
-  leftCamInfoMsg->D[3] = zedParam.left_cam.disto[2];    // p1
-  leftCamInfoMsg->D[4] = zedParam.left_cam.disto[3];    // p2
+  leftCamInfoMsg->D[2] = zedParam.left_cam.disto[2];  // p1
+  leftCamInfoMsg->D[3] = zedParam.left_cam.disto[3];  // p2
+  leftCamInfoMsg->D[4] = zedParam.left_cam.disto[4];  // k3
   rightCamInfoMsg->D[0] = zedParam.right_cam.disto[0];  // k1
   rightCamInfoMsg->D[1] = zedParam.right_cam.disto[1];  // k2
-  rightCamInfoMsg->D[2] = zedParam.right_cam.disto[4];  // k3
-  rightCamInfoMsg->D[3] = zedParam.right_cam.disto[2];  // p1
-  rightCamInfoMsg->D[4] = zedParam.right_cam.disto[3];  // p2
+  rightCamInfoMsg->D[2] = zedParam.right_cam.disto[2];  // p1
+  rightCamInfoMsg->D[3] = zedParam.right_cam.disto[3];  // p2
+  rightCamInfoMsg->D[4] = zedParam.right_cam.disto[4];  // k3
   leftCamInfoMsg->K.fill(0.0);
   rightCamInfoMsg->K.fill(0.0);
   leftCamInfoMsg->K[0] = static_cast<double>(zedParam.left_cam.fx);
@@ -3263,7 +3263,7 @@ void ZEDWrapperNodelet::fillCamInfo(sl::Camera& zed, sensor_msgs::CameraInfoPtr 
   leftCamInfoMsg->P[6] = static_cast<double>(zedParam.left_cam.cy);
   leftCamInfoMsg->P[10] = 1.0;
   // http://docs.ros.org/api/sensor_msgs/html/msg/CameraInfo.html
-  // rightCamInfoMsg->P[3] = static_cast<double>(-1 * zedParam.left_cam.fx * baseline);y
+  rightCamInfoMsg->P[3] = -static_cast<double>(zedParam.right_cam.fx) * baseline;
   rightCamInfoMsg->P[0] = static_cast<double>(zedParam.right_cam.fx);
   rightCamInfoMsg->P[2] = static_cast<double>(zedParam.right_cam.cx);
   rightCamInfoMsg->P[5] = static_cast<double>(zedParam.right_cam.fy);
@@ -3286,9 +3286,9 @@ void ZEDWrapperNodelet::fillCamDepthInfo(sl::Camera& zed, sensor_msgs::CameraInf
   depth_info_msg->D.resize(5);
   depth_info_msg->D[0] = zedParam.left_cam.disto[0];  // k1
   depth_info_msg->D[1] = zedParam.left_cam.disto[1];  // k2
-  depth_info_msg->D[2] = zedParam.left_cam.disto[4];  // k3
-  depth_info_msg->D[3] = zedParam.left_cam.disto[2];  // p1
-  depth_info_msg->D[4] = zedParam.left_cam.disto[3];  // p2
+  depth_info_msg->D[2] = zedParam.left_cam.disto[2];  // p1
+  depth_info_msg->D[3] = zedParam.left_cam.disto[3];  // p2
+  depth_info_msg->D[4] = zedParam.left_cam.disto[4];  // k3
   depth_info_msg->K.fill(0.0);
   depth_info_msg->K[0] = static_cast<double>(zedParam.left_cam.fx);
   depth_info_msg->K[2] = static_cast<double>(zedParam.left_cam.cx);
@@ -3920,9 +3920,10 @@ void ZEDWrapperNodelet::pubVideoDepth()
         cv::warpAffine(confImage, confImage, rot_mat, confImage.size());
       }
 
-      // Convert float32 confidence to 16UC1 for PNG compression (scale as needed)
+      // ZED confidence is in [1, 100], with larger values less reliable.
+      // Preserve those units: the depth scale (1000) would saturate values above 65.535.
       cv::Mat conf16u;
-      confImage.convertTo(conf16u, CV_16UC1, 1000.0); // scale factor can be adjusted if needed
+      confImage.convertTo(conf16u, CV_16UC1);
 
       static std::vector<int> conf_params = {cv::IMWRITE_PNG_COMPRESSION, 5};
       cv::imencode(".png", conf16u, pngCompressedConfImage.data, conf_params);
